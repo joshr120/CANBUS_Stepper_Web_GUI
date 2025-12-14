@@ -8,50 +8,178 @@
     <style>
         :root {
             --bg-color: #212121; --header-bg: #2B2B2B; --card-bg: #1A1A1A;
-            --accent-blue: #1f538d; --accent-green: #2ecc71; --accent-red: #a93226; --text-color: #ffffff;
-            --border: #3E3E3E;
+            --accent-blue: #3498db; --accent-green: #2ecc71; --accent-red: #a93226; --text-color: #ffffff;
+            --border: #3E3E3E; --stale-color: #555555;
+            --accent-orange: #e67e22;
+        }
+        
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: sans-serif; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; 
         }
 
-        body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden;}
-        header { background-color: var(--header-bg); padding: 10px 20px; display: flex; gap: 15px; align-items: center; border-bottom: 1px solid var(--border); }
-        
-        .btn { background-color: var(--accent-blue); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s; font-size: 0.85em; }
+        /* Connection Lock Overlay */
+        #connectionOverlay {
+            position: fixed; top: 60px; left: 0; width: 100%; height: calc(100% - 110px);
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(4px) grayscale(100%);
+            z-index: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: all;
+        }
+
+        /* High Intensity Pulsing Glow */
+        @keyframes pulse-glow-intense {
+            0% { 
+                box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); 
+                border-color: var(--accent-blue);
+            }
+            50% { 
+                box-shadow: 0 0 25px rgba(52, 152, 219, 0.8), 
+                            0 0 50px rgba(52, 152, 219, 0.6),
+                            0 0 80px rgba(52, 152, 219, 0.4); 
+                border-color: #ffffff;
+            }
+            100% { 
+                box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); 
+                border-color: var(--accent-blue);
+            }
+        }
+
+        .glow-active {
+            animation: pulse-glow-intense 1.8s infinite ease-in-out;
+            z-index: 1002; /* Ensure it stays above everything */
+            border: 2px solid var(--accent-blue) !important;
+        }
+
+        header { 
+            background-color: var(--header-bg); 
+            padding: 10px 20px; 
+            display: flex; 
+            align-items: center; 
+            border-bottom: 1px solid var(--border); 
+            flex-shrink: 0;
+            z-index: 1001; 
+        }
+
+        .header-spacer { flex: 1; }
+        .header-left, .header-right { display: flex; align-items: center; gap: 15px; }
+
+        main { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 1fr 1fr; 
+            gap: 15px; 
+            padding: 15px; 
+            flex: 1; 
+            overflow: hidden; 
+        }
+
+        footer {
+            height: 50px;
+            background: var(--header-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-shrink: 0;
+            z-index: 1001;
+        }
+
+        .logo-container { height: 35px; display: flex; align-items: center; }
+        .logo-container img { max-height: 100%; width: auto; display: block; }
+
+        .status-container { display: flex; align-items: center; gap: 10px; }
+        .led-circle {
+            width: 10px; height: 10px; border-radius: 50%;
+            background-color: var(--accent-red);
+            transition: background-color 0.1s, box-shadow 0.1s;
+        }
+        .led-offline { background-color: var(--accent-red); box-shadow: none; }
+        .led-active { background-color: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+        .led-stale { background-color: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
+        .led-blink { background-color: #ffffff; box-shadow: 0 0 10px #ffffff; }
+
+        #nodeCounter { cursor: pointer; text-decoration: underline; color: #888; margin-left: 5px; transition: color 0.2s; }
+        #nodeCounter:hover { color: var(--accent-blue); }
+
+        #nodeModal {
+            display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: var(--card-bg); border: 1px solid var(--border); padding: 25px; border-radius: 12px;
+            width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .node-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0; max-height: 200px; overflow-y: auto; }
+        .node-chip {
+            background: #333; border: 1px solid var(--accent-blue); color: white; padding: 8px 12px; 
+            border-radius: 6px; cursor: pointer; font-family: monospace; font-weight: bold; transition: 0.2s;
+        }
+        .node-chip:hover { background: var(--accent-blue); transform: translateY(-2px); }
+
+        .btn { background-color: var(--accent-blue); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s, box-shadow 0.2s; font-size: 0.85em; }
         .btn-send { background-color: #e67e22; }
-        .btn-disconnect { background-color: var(--accent-red); }
-        .btn-refresh-small { background-color: #444; padding: 4px 10px; font-size: 0.7em; margin-top: 8px; border: 1px solid #555; text-transform: uppercase; letter-spacing: 0.5px; }
-        .btn-refresh-small:hover { background-color: #555; }
+        .btn-disconnect { background-color: var(--accent-red) !important; box-shadow: none !important; animation: none !important; }
+        .btn-refresh-small { background-color: #444; padding: 4px 10px; font-size: 0.7em; border: 1px solid #555; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-grey { background-color: #444 !important; }
+        
+        .hint-group { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; min-height: 20px; }
+        .instruction-hint { font-size: 0.65em; color: #777; font-style: italic; white-space: nowrap; }
 
         input, select { background: #333; color: white; border: 1px solid var(--border); padding: 5px; border-radius: 4px; }
         .preview-box { font-family: monospace; background: #000; padding: 5px 10px; border-radius: 4px; color: #aaa; border: 1px solid #444; min-width: 150px; font-size: 0.85em; }
 
-        main { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; flex: 1; overflow: hidden; }
-        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-        
-        .scroll-header { padding: 12px; background: var(--header-bg); text-align: center; border-bottom: 1px solid var(--border); }
+        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
+        .scroll-header { padding: 12px; background: var(--header-bg); text-align: center; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .header-main { font-weight: bold; color: #5dade2; display: block; font-size: 1.1em; text-transform: uppercase; }
-        .header-sub { font-size: 0.75em; color: #888; display: block; margin-top: 2px; }
+        .scroll-content { flex: 1; overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: #444 transparent; }
 
-        .scroll-content { flex: 1; overflow-y: auto; padding: 10px; }
-        .data-row { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #333; font-family: monospace; gap: 10px; font-size: 0.9em; user-select: none; }
+        .data-row { display: flex; align-items: center; padding: 6px 8px; border-bottom: 1px solid #2a2a2a; font-family: monospace; gap: 10px; font-size: 0.85em; user-select: none; }
         .data-row:hover { background: #252525; cursor: pointer; }
-        .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .data-value { color: var(--accent-green); width: 140px; text-align: right; font-weight: bold; }
+        .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ccc; }
+        .data-value { color: var(--accent-green); width: 140px; text-align: right; font-weight: bold; transition: color 0.4s ease; }
+        .data-value.stale { color: var(--stale-color); }
+        .inline-edit { background: #444; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: monospace; border-radius: 2px; }
 
-        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; height: 450px; padding: 15px; position: relative; }
-        .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 15px; font-size: 0.85em; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px; border: 1px solid #444; }
+        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; min-height: 0; }
+        .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 6px; border: 1px solid #444; }
     </style>
 </head>
 <body>
 
-<header>
-    <button id="connectBtn" class="btn">Connect Serial</button>
-    <div style="border-left: 1px solid #444; padding-left: 15px;">
-        <span style="color:#888; font-size:0.8em;">TARGET NODE</span>
-        <input type="number" id="nodeIdSelect" value="1" min="1" max="31" style="width: 45px;">
+<div id="connectionOverlay"></div>
+
+<div id="nodeModal">
+    <div class="modal-content">
+        <h3 style="margin:0; color:var(--accent-blue);">DISCOVERED NODES</h3>
+        <p style="font-size: 0.75em; color: #777; margin-bottom: 15px;">Click an ID to set as active target</p>
+        <div id="nodeGrid" class="node-grid"></div>
+        <button class="btn btn-grey" style="width:100%" onclick="closeModal()">Close</button>
     </div>
-    <div style="border-left: 1px solid #444; padding-left: 15px; display: flex; gap: 10px; align-items: center;">
+</div>
+
+<header>
+    <div class="header-left">
+        <button id="connectBtn" class="btn glow-active">Connect Serial</button>
+        <div style="border-left: 1px solid #444; padding-left: 15px;">
+            <span style="color:#888; font-size:0.8em;">TARGET NODE</span>
+            <input type="number" id="nodeIdSelect" value="1" min="0" max="31" style="width: 45px;">
+        </div>
+    </div>
+    <div class="header-spacer"></div>
+    <div class="header-right" style="border-left: 1px solid #444; padding-left: 15px;">
         <select id="cmdType"></select>
-        <input type="text" id="cmdValue" placeholder="Value" style="width: 80px;">
+        <input type="text" id="cmdValue" placeholder="100, 10" style="width: 80px;">
         <div class="preview-box" id="previewStr">-- -- ----------------</div>
         <button id="sendBtn" class="btn btn-send">Send</button>
     </div>
@@ -60,282 +188,347 @@
 <main>
     <div class="scroll-container">
         <div class="scroll-header">
-            <span class="header-main">DEVICE SETTINGS (NODE <span id="setNodeLabel">1</span>)</span>
-            <button id="refreshRtr" class="btn btn-refresh-small">Refresh All</button>
+            <span class="header-main">DEVICE SETTINGS</span>
+            <div class="hint-group">
+                <button id="refreshRtr" class="btn btn-refresh-small">Refresh All</button>
+                <div class="instruction-hint">Double click to edit • Enter to send</div>
+            </div>
         </div>
         <div id="config-list" class="scroll-content"></div>
     </div>
-
     <div class="scroll-container">
         <div class="scroll-header">
-            <span class="header-main">LIVE TELEMETRY (NODE <span id="teleNodeLabel">1</span>)</span>
-            <span class="header-sub">(Select to Graph)</span>
+            <span class="header-main">LIVE TELEMETRY</span>
+            <div class="hint-group">
+                <div class="instruction-hint">Select checkboxes to graph fields</div>
+            </div>
         </div>
         <div id="telemetry-list" class="scroll-content"></div>
     </div>
-
     <div id="graph-area">
         <div class="graph-controls">
-            <label style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-weight: bold; cursor: pointer;">
-                <input type="checkbox" id="freezeToggle"> FREEZE
-            </label>
-            <div style="border-left: 1px solid #555; height: 15px; margin: 0 5px;"></div>
-            <div>
-                <span>TIME BASE:</span>
-                <select id="timeBaseSelect">
-                    <option value="10">10s</option>
-                    <option value="30" selected>30s</option>
-                    <option value="60">1m</option>
-                    <option value="300">5m</option>
-                </select>
-            </div>
+            <button id="saveCsvBtn" class="btn btn-grey">SAVE CSV</button>
+            <button id="clearChartBtn" class="btn btn-grey">CLEAR</button>
+            <button id="resetGraphBtn" class="btn btn-grey">RESET</button>
+            <label style="cursor: pointer; color: white; display:flex; align-items:center; gap:5px;"><input type="checkbox" id="freezeToggle"> FREEZE</label>
+            <select id="timeBaseSelect">
+                <option value="10">10s</option>
+                <option value="30" selected>30s</option>
+                <option value="60">1m</option>
+            </select>
         </div>
         <canvas id="telemetryChart"></canvas>
     </div>
 </main>
 
+<footer>
+    <div class="logo-container">
+        <img src="img/footer.png" alt="Company Logo" onerror="this.style.display='none';">
+    </div>
+    <div class="status-container">
+        <div id="statusLed" class="led-circle led-offline"></div>
+        <div style="font-size: 0.7em; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+            System Status: <span id="statusIndicator" style="color: var(--accent-red);">Offline</span>
+            <span id="nodeCounter" title="Click to view discovered nodes"></span>
+        </div>
+    </div>
+</footer>
+
 <script>
     const CAN_FORMATS = {
-        0: ["NOP", null], 1: ["Set Position (deg)", 'Float64'], 2: ["Set Position (steps)", 'BigInt64'],
-        3: ["Set Velocity (deg/s)", 'Float32'], 5: ["Enable (0/1)", 'Uint8'], 
-        19: ["Report Freq (Hz)", 'Special19'], 25: ["Set Node ID", 'Uint16']
+        0:  ["NOP", null], 1: ["Set Position (deg)", 'Float64'], 2: ["Set Position (steps)", 'BigInt64'],
+        3:  ["Set Velocity (deg/s)", 'Float32'], 4: ["Set Current (%)", 'Uint16'], 5: ["Enable (0/1)", 'Uint8'],
+        6:  ["Emergency Stop", null], 7: ["Sensorless Home (Dir)", 'Uint8'], 9: ["LED 1 State", 'Uint8'],
+        10: ["Steps per Rev", 'Uint16'], 11: ["Microsteps", 'Uint16'], 12: ["Stallguard Threshold", 'Int16'],
+        13: ["Closed Loop Type (0/1)", 'Int16'], 14: ["Standstill Mode", 'Uint16'], 15: ["Map Direction (0/1)", 'Uint8'],
+        16: ["Position Speed", 'Float32'], 17: ["Acceleration", 'Float32'], 18: ["Deceleration", 'Float32'],
+        19: ["Report Frequency (f1,f2)", 'Special19'], 20: ["Boot Enable (0/1)", 'Uint8'], 21: ["3V3 LED Disable", 'Uint8'],
+        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["Zero Enc at Boot", 'Uint8']
     };
 
     const TELEMETRY_FIELDS = {
-        32: ["Encoder Counts", 'BigInt64'], 33: ["Encoder Angle (deg)", 'Float64'],
-        34: ["Voltage", 'Float32'], 38: ["Board Temp (°C)", 'Float32'], 42: ["Current Vel (deg/s)", 'Float32']
+        32: ["Encoder Counts", 'BigInt64'], 33: ["Encoder Angle (deg)", 'Float64'], 34: ["Voltage (V)", 'Float32'],
+        35: ["Button States", 'Special35'], 36: ["Stallguard Value", 'Uint32'], 37: ["Stall Triggered", 'Uint8'],
+        38: ["Board Temp (°C)", 'Float32'], 39: ["Fault Code", 'Uint16'], 40: ["FW Version", 'Float32'],
+        41: ["ESP32 Temp (°C)", 'Float32'], 42: ["Current Vel (deg/s)", 'Float32']
     };
 
-    let port, reader;
-    let keepReading = true;
-    let isFrozen = false;
-    const activePlots = new Set();
+    let port, reader, keepReading = false, isFrozen = false;
+    let discoveryInterval = null;
+    let foundNodes = new Map();
+    const startTime = Date.now(), telemetryWatchdogs = {};
     let timeWindowSeconds = 30;
-    const startTime = Date.now();
+
+    const ctx = document.getElementById('telemetryChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line', data: { datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: {
+                x: { type: 'linear', position: 'bottom', grid: { color: '#333' }, ticks: { color: '#888' }, title: { display: true, text: 'Seconds', color: '#888' } },
+                y: { grid: { color: '#333' }, ticks: { color: '#888' } }
+            },
+            plugins: { legend: { labels: { color: '#fff', boxWidth: 10 } } }
+        }
+    });
+
+    function updateLed(state) {
+        const led = document.getElementById('statusLed');
+        led.className = 'led-circle led-' + state;
+        if (state === 'blink') {
+            led.classList.add('led-blink');
+            setTimeout(refreshSystemStatus, 60); 
+        }
+    }
+
+    function refreshSystemStatus() {
+        const indicator = document.getElementById('statusIndicator');
+        const counter = document.getElementById('nodeCounter');
+        const led = document.getElementById('statusLed');
+        const overlay = document.getElementById('connectionOverlay');
+        const connectBtn = document.getElementById('connectBtn');
+
+        if (!keepReading) {
+            indicator.innerText = "Offline";
+            indicator.style.color = "var(--accent-red)";
+            counter.innerText = "";
+            led.className = 'led-circle led-offline';
+            overlay.style.display = 'flex';
+            connectBtn.classList.add('glow-active');
+            return;
+        }
+
+        overlay.style.display = 'none';
+        connectBtn.classList.remove('glow-active');
+        const count = foundNodes.size;
+        if (count > 0) {
+            indicator.innerText = "Active";
+            indicator.style.color = "var(--accent-green)";
+            led.className = 'led-circle led-active';
+            counter.innerText = `(${count} NODE${count !== 1 ? 'S' : ''} FOUND)`;
+        } else {
+            indicator.innerText = "STALE (NO NODES)";
+            indicator.style.color = "var(--accent-orange)";
+            led.className = 'led-circle led-stale';
+            counter.innerText = "(0 NODES FOUND)";
+        }
+    }
+
+    function openModal() {
+        if (!keepReading) return;
+        updateModalList();
+        document.getElementById('nodeModal').style.display = 'flex';
+    }
+    function closeModal() { document.getElementById('nodeModal').style.display = 'none'; }
+    function updateModalList() {
+        const grid = document.getElementById('nodeGrid');
+        grid.innerHTML = '';
+        if (foundNodes.size === 0) {
+            grid.innerHTML = '<div style="color:#555; width:100%;">No nodes currently responding...</div>';
+            return;
+        }
+        const sortedIds = Array.from(foundNodes.keys()).sort((a,b) => a - b);
+        sortedIds.forEach(id => {
+            const chip = document.createElement('div');
+            chip.className = 'node-chip';
+            chip.innerText = `ID ${id}`;
+            chip.onclick = () => {
+                document.getElementById('nodeIdSelect').value = id;
+                updatePreview();
+                closeModal();
+            };
+            grid.appendChild(chip);
+        });
+    }
+    document.getElementById('nodeCounter').onclick = openModal;
+
+    function pruneNodes() {
+        const now = Date.now();
+        let changed = false;
+        for (const [nodeId, lastSeen] of foundNodes.entries()) {
+            if (now - lastSeen > 6500) { 
+                foundNodes.delete(nodeId);
+                changed = true;
+            }
+        }
+        if (changed) {
+            refreshSystemStatus();
+            if (document.getElementById('nodeModal').style.display === 'flex') updateModalList();
+        }
+    }
 
     function initUI() {
-        const cfg = document.getElementById('config-list');
-        const tel = document.getElementById('telemetry-list');
-        const cmd = document.getElementById('cmdType');
-
+        const cfg = document.getElementById('config-list'), tel = document.getElementById('telemetry-list'), cmd = document.getElementById('cmdType');
+        cfg.innerHTML = ''; tel.innerHTML = ''; cmd.innerHTML = '';
         Object.entries(CAN_FORMATS).forEach(([id, info]) => {
-            cfg.innerHTML += `
-                <div class="data-row">
-                    <span class="data-label">[${id}] ${info[0]}</span>
-                    <span class="data-value" id="val-${id}">---</span>
-                </div>`;
+            cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
             cmd.innerHTML += `<option value="${id}">${id}: ${info[0]}</option>`;
         });
-
         Object.entries(TELEMETRY_FIELDS).forEach(([id, info]) => {
-            tel.innerHTML += `
-                <div class="data-row">
-                    <input type="checkbox" class="plot-trigger" data-mid="${id}">
-                    <span class="data-label">[${id}] ${info[0]}</span>
-                    <span class="data-value" id="val-${id}">---</span>
-                </div>`;
+            tel.innerHTML += `<div class="data-row" data-mid="${id}" data-type="telemetry"><input type="checkbox" class="plot-trigger" data-mid="${id}"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
         });
-        
         document.querySelectorAll('.data-row').forEach(row => {
-            row.addEventListener('dblclick', () => {
-                const label = row.querySelector('.data-label').innerText;
-                const match = label.match(/\[(\d+)\]/);
-                if (match) requestRtr(match[1]);
+            row.addEventListener('dblclick', (e) => {
+                if(e.target.classList.contains('plot-trigger')) return;
+                const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
+                if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
+                else requestRtr(mid);
             });
         });
         updatePreview();
     }
-    initUI();
-
-    function syncNodeUI() {
-        const node = document.getElementById('nodeIdSelect').value;
-        document.getElementById('setNodeLabel').innerText = node;
-        document.getElementById('teleNodeLabel').innerText = node;
-        document.querySelectorAll('.data-value').forEach(el => el.innerText = "---");
-        document.querySelectorAll('.plot-trigger').forEach(cb => {
-            cb.checked = activePlots.has(`${node}-${cb.dataset.mid}`);
-        });
-        updatePreview();
-    }
-    document.getElementById('nodeIdSelect').addEventListener('input', syncNodeUI);
-    document.getElementById('freezeToggle').addEventListener('change', (e) => isFrozen = e.target.checked);
-
-    const ctx = document.getElementById('telemetryChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: { datasets: [] },
-        options: {
-            responsive: true, maintainAspectRatio: false, animation: false,
-            interaction: { mode: 'nearest', intersect: false },
-            scales: {
-                x: { 
-                    type: 'linear', position: 'bottom', grid: { color: '#333' }, 
-                    ticks: { color: '#888' },
-                    title: { display: true, text: 'Seconds Since Start', color: '#888' }
-                },
-                y: { grid: { color: '#333' }, ticks: { color: '#888' } }
-            },
-            plugins: { 
-                legend: { labels: { color: '#fff', boxWidth: 12 } },
-                tooltip: { enabled: true }
-            }
-        }
-    });
-
-    document.getElementById('timeBaseSelect').addEventListener('change', (e) => timeWindowSeconds = parseInt(e.target.value));
-
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('plot-trigger')) {
-            const node = document.getElementById('nodeIdSelect').value;
-            const mid = e.target.dataset.mid;
-            const key = `${node}-${mid}`;
-            if (e.target.checked) {
-                activePlots.add(key);
-                const color = `hsl(${Math.random() * 360}, 70%, 60%)`;
-                chart.data.datasets.push({
-                    label: `N${node}: ${TELEMETRY_FIELDS[mid][0]}`,
-                    data: [], borderColor: color,
-                    borderWidth: 1.5,
-                    pointRadius: 1,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: color,
-                    tension: 0.4,
-                    key: key
-                });
-            } else {
-                activePlots.delete(key);
-                chart.data.datasets = chart.data.datasets.filter(ds => ds.key !== key);
-            }
-            chart.update();
-        }
-    });
-
-    function parseLine(line) {
-        const parts = line.split(" ");
-        if (parts.length < 3) return;
-        const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
-        const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
-        if (!config) return;
-
-        try {
-            const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
-            const view = new DataView(bytes.buffer);
-            let val, displayVal;
-
-            if (config[1] === 'Special19') {
-                const freqA = view.getUint16(0, true), freqO = view.getUint16(2, true);
-                val = freqA; displayVal = `A:${freqA} | O:${freqO}`;
-            } else {
-                switch(config[1]) {
-                    case 'Float64': val = view.getFloat64(0, true); break;
-                    case 'Float32': val = view.getFloat32(0, true); break;
-                    case 'Uint16': val = view.getUint16(0, true); break;
-                    case 'Uint8': val = view.getUint8(0); break;
-                    case 'BigInt64': val = Number(view.getBigInt64(0, true)); break;
-                }
-                displayVal = typeof val === 'number' ? val.toFixed(2) : val;
-            }
-
-            if (nid == document.getElementById('nodeIdSelect').value) {
-                const el = document.getElementById(`val-${mid}`);
-                if (el) el.innerText = displayVal;
-            }
-
-            const ds = chart.data.datasets.find(d => d.key === `${nid}-${mid}`);
-            if (ds) {
-                const currentTime = (Date.now() - startTime) / 1000;
-                ds.data.push({ x: currentTime, y: val });
-                
-                const cutoff = currentTime - timeWindowSeconds;
-                ds.data = ds.data.filter(p => p.x > (cutoff - 2)); 
-                
-                if (!isFrozen) {
-                    chart.options.scales.x.min = cutoff;
-                    chart.options.scales.x.max = currentTime;
-                    chart.update('none');
-                }
-            }
-        } catch(e) {}
-    }
-
-    const connectBtn = document.getElementById('connectBtn');
-    connectBtn.addEventListener('click', async () => {
-        if (port) {
-            keepReading = false;
-            if (reader) await reader.cancel();
-            await port.close(); port = null;
-            connectBtn.innerText = "Connect Serial";
-            connectBtn.classList.remove('btn-disconnect');
-            return;
-        }
-        port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
-        keepReading = true;
-        connectBtn.innerText = "Disconnect";
-        connectBtn.classList.add('btn-disconnect');
-        const textDecoder = new TextDecoderStream();
-        port.readable.pipeTo(textDecoder.writable);
-        reader = textDecoder.readable.getReader();
-        let buffer = "";
-        while (keepReading) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += value;
-            let lines = buffer.split("\n");
-            buffer = lines.pop();
-            lines.forEach(l => parseLine(l.trim()));
-        }
-    });
 
     function constructPayload(mid, valStr) {
-        const type = CAN_FORMATS[mid][1];
-        const buffer = new ArrayBuffer(8);
-        const view = new DataView(buffer);
-        const val = parseFloat(valStr) || 0;
+        const type = (CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid])[1];
+        const buffer = new ArrayBuffer(8), view = new DataView(buffer);
+        if (!type) return "0000000000000000";
         try {
-            if (type === 'Float64') view.setFloat64(0, val, true);
-            else if (type === 'Float32') view.setFloat32(0, val, true);
-            else if (type === 'Uint16') view.setUint16(0, val, true);
-            else if (type === 'Uint8') view.setUint8(0, val);
-            else if (type === 'BigInt64') view.setBigInt64(0, BigInt(Math.floor(val)), true);
-            else if (type === 'Special19') {
-                const p = valStr.split(',');
-                view.setUint16(0, parseInt(p[0]||0), true);
-                view.setUint16(2, parseInt(p[1]||0), true);
+            if (type === 'Special19') {
+                const cleaned = valStr.replace(/[()]/g, '');
+                const parts = cleaned.split(',').map(p => parseInt(p.trim()) || 0);
+                view.setUint16(0, parts[0] || 0, true); view.setUint16(2, parts[1] || 0, true);
+            } else {
+                const val = parseFloat(valStr) || 0;
+                if (type === 'Float64') view.setFloat64(0, val, true);
+                else if (type === 'Float32') view.setFloat32(0, val, true);
+                else if (type === 'Uint32') view.setUint32(0, val, true);
+                else if (type === 'Uint16') view.setUint16(0, val, true);
+                else if (type === 'Int16') view.setInt16(0, val, true);
+                else if (type === 'Uint8') view.setUint8(0, val);
+                else if (type === 'BigInt64') view.setBigInt64(0, BigInt(Math.floor(val)), true);
             }
         } catch(e) {}
         return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
     }
 
+    function parseLine(line) {
+        if (!line) return;
+        updateLed('blink');
+        const parts = line.split(" "); if (parts.length < 3) return;
+        const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
+        foundNodes.set(nid, Date.now());
+        refreshSystemStatus();
+        const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
+        if (!config) return;
+        try {
+            const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const view = new DataView(bytes.buffer);
+            let val = 0; let displayVal = "---";
+            if (config[1] === 'Special19') {
+                const f1 = view.getUint16(0, true); const f2 = view.getUint16(2, true);
+                displayVal = `(${f1}, ${f2})`; val = f1; 
+            } else if (config[1] === 'Special35') {
+                displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0);
+            } else {
+                switch(config[1]) {
+                    case 'Float64': val = view.getFloat64(0, true); break;
+                    case 'Float32': val = view.getFloat32(0, true); break;
+                    case 'Uint32': val = view.getUint32(0, true); break;
+                    case 'Uint16': val = view.getUint16(0, true); break;
+                    case 'Int16': val = view.setInt16(0, true); break;
+                    case 'Uint8': val = view.getUint8(0); break;
+                    case 'BigInt64': val = Number(view.getBigInt64(0, true)); break;
+                }
+                displayVal = Number.isInteger(val) ? val : val.toFixed(2);
+            }
+            if (nid == document.getElementById('nodeIdSelect').value) {
+                const el = document.getElementById(`val-${mid}`);
+                if (el && !el.querySelector('input')) { el.innerText = displayVal; handleWatchdog(mid); }
+            }
+            const ds = chart.data.datasets.find(d => d.key === `${nid}-${mid}`);
+            if (ds) {
+                const currentTime = (Date.now() - startTime) / 1000;
+                ds.data.push({ x: currentTime, y: val });
+                if (!isFrozen) { 
+                    chart.options.scales.x.min = currentTime - timeWindowSeconds; 
+                    chart.options.scales.x.max = currentTime; 
+                    chart.update('none'); 
+                }
+            }
+        } catch(e) {}
+    }
+
+    function startInlineEdit(mid, valSpan) {
+        if (valSpan.querySelector('input')) return;
+        const originalText = valSpan.innerText === "---" ? "" : valSpan.innerText;
+        valSpan.innerHTML = `<input type="text" class="inline-edit" value="${originalText}">`;
+        const input = valSpan.querySelector('input'); input.focus(); input.select();
+        const finishEdit = async (save) => {
+            if (save && input.value !== originalText) {
+                const nid = document.getElementById('nodeIdSelect').value;
+                const payloadHex = constructPayload(mid, input.value);
+                const canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
+                await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${payloadHex}`);
+                valSpan.innerText = input.value;
+                setTimeout(triggerGlobalRefresh, 100);
+            } else { valSpan.innerText = originalText || "---"; }
+        };
+        input.onkeydown = (e) => { if (e.key === 'Enter') finishEdit(true); else if (e.key === 'Escape') finishEdit(false); };
+        input.onblur = () => finishEdit(false);
+    }
+
+    async function triggerGlobalRefresh() { for (let mid in CAN_FORMATS) { if (CAN_FORMATS[mid][1]) { requestRtr(mid); await new Promise(r => setTimeout(r, 40)); } } }
     function updatePreview() {
-        const nid = parseInt(document.getElementById('nodeIdSelect').value);
-        const mid = parseInt(document.getElementById('cmdType').value);
-        const valStr = document.getElementById('cmdValue').value;
-        const canId = (nid << 6) | (mid & 0x3F);
-        const payloadHex = constructPayload(mid, valStr);
-        const fullCmd = `${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${payloadHex}`;
-        document.getElementById('previewStr').innerText = fullCmd;
-        return fullCmd;
+        const nid = document.getElementById('nodeIdSelect').value, mid = document.getElementById('cmdType').value;
+        const canId = (nid << 6) | (mid & 0x3F), payload = constructPayload(mid, document.getElementById('cmdValue').value);
+        const full = `${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${payload}`;
+        document.getElementById('previewStr').innerText = full; return full;
+    }
+    async function sendRaw(str) { if (port?.writable) { const w = port.writable.getWriter(); await w.write(new TextEncoder().encode(str + "\n")); w.releaseLock(); } }
+    function requestRtr(mid) { const nid = document.getElementById('nodeIdSelect').value, canId = (nid << 6) | (mid & 0x3F); sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`); }
+    function handleWatchdog(mid) { 
+        const el = document.getElementById(`val-${mid}`); if(!el) return;
+        if (telemetryWatchdogs[mid]) clearTimeout(telemetryWatchdogs[mid]);
+        el.classList.remove('stale');
+        telemetryWatchdogs[mid] = setTimeout(() => el.classList.add('stale'), 2000);
     }
 
-    async function sendRaw(str) {
-        if (!port || !port.writable) return;
-        const writer = port.writable.getWriter();
-        await writer.write(new TextEncoder().encode(str + "\n"));
-        writer.releaseLock();
-    }
+    document.getElementById('connectBtn').onclick = async () => {
+        if (port) { location.reload(); return; }
+        try {
+            port = await navigator.serial.requestPort(); await port.open({ baudRate: 115200 });
+            keepReading = true; 
+            document.getElementById('connectBtn').innerText = "DISCONNECT";
+            document.getElementById('connectBtn').classList.add('btn-disconnect');
+            refreshSystemStatus();
 
-    function requestRtr(mid) {
-        const nid = document.getElementById('nodeIdSelect').value;
-        const canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
-        sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`);
-    }
+            discoveryInterval = setInterval(() => {
+                if(keepReading) { sendRaw("00 1 0000000000000000"); pruneNodes(); }
+            }, 5000);
 
-    document.getElementById('sendBtn').addEventListener('click', () => sendRaw(updatePreview()));
-    document.getElementById('refreshRtr').addEventListener('click', async () => {
-        for (let mid in CAN_FORMATS) { if (CAN_FORMATS[mid][1]) { requestRtr(mid); await new Promise(r => setTimeout(r, 35)); } }
+            const textDecoder = new TextDecoderStream(); port.readable.pipeTo(textDecoder.writable);
+            reader = textDecoder.readable.getReader(); let buffer = "";
+            while (keepReading) { const { value, done } = await reader.read(); if (done) break; buffer += value; let lines = buffer.split("\n"); buffer = lines.pop(); lines.forEach(l => parseLine(l.trim())); }
+        } catch(e) { console.log("Serial connection failed", e); }
+    };
+
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('plot-trigger')) {
+            const nid = document.getElementById('nodeIdSelect').value, mid = e.target.dataset.mid, key = `${nid}-${mid}`;
+            if (e.target.checked) {
+                const hue = Math.random() * 360;
+                chart.data.datasets.push({ 
+                    label: `N${nid}: ${TELEMETRY_FIELDS[mid][0]}`, 
+                    data: [], borderColor: `hsl(${hue},70%,60%)`, borderWidth: 1.5, pointRadius: 1.5, tension: 0.4, key: key 
+                });
+            } else chart.data.datasets = chart.data.datasets.filter(ds => ds.key !== key);
+            chart.update();
+        }
     });
-    ['cmdType', 'cmdValue'].forEach(id => document.getElementById(id).addEventListener('input', updatePreview));
+
+    document.getElementById('sendBtn').onclick = () => sendRaw(updatePreview());
+    document.getElementById('refreshRtr').onclick = triggerGlobalRefresh;
+    document.getElementById('clearChartBtn').onclick = () => { chart.data.datasets.forEach(d => d.data = []); chart.update(); };
+    document.getElementById('resetGraphBtn').onclick = () => {
+        document.querySelectorAll('.plot-trigger').forEach(cb => cb.checked = false);
+        chart.data.datasets = []; chart.update();
+    };
+
+    document.getElementById('timeBaseSelect').onchange = (e) => timeWindowSeconds = parseInt(e.target.value);
+    document.getElementById('freezeToggle').onchange = (e) => isFrozen = e.target.checked;
+    ['cmdType', 'cmdValue', 'nodeIdSelect'].forEach(id => document.getElementById(id).oninput = updatePreview);
+    
+    initUI();
 </script>
 </body>
 </html>
