@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAN Web Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #212121; --header: #2B2B2B; --accent: #5dade2; --text: #FFFFFF; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 20px; }
+        .toolbar { background: var(--header); padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+        button { background: #1f538d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #2969b3; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { border: 1px solid #3E3E3E; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; }
+        .telemetry-row { display: flex; justify-content: space-between; font-family: monospace; padding: 4px 0; border-bottom: 1px solid #333; }
+        #chart-container { margin-top: 20px; background: #1A1A1A; padding: 15px; border-radius: 8px; height: 400px; }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button id="connectBtn">Connect Serial</button>
+        <span id="status">Disconnected</span>
+        <input type="number" id="nodeId" value="1" style="width: 50px;">
+        <button id="refreshBtn">Refresh All (RTR)</button>
+    </div>
+
+    <div class="grid">
+        <div class="card" id="config-list"><h3>Settings (RTR)</h3></div>
+        <div class="card" id="telemetry-list"><h3>Live Telemetry</h3></div>
+    </div>
+
+    <div id="chart-container">
+        <canvas id="telemetryChart"></canvas>
+    </div>
+
+<script>
+    let port, reader, inputDone;
+    const statusEl = document.getElementById('status');
+    const telemetryData = {}; // Stores latest values
+
+    // 1. WebSerial Connection Logic
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+        try {
+            port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 115200 });
+            statusEl.textContent = "Connected";
+            readLoop();
+        } catch (e) {
+            console.error(e);
+            statusEl.textContent = "Error: " + e.message;
+        }
+    });
+
+    // 2. The Read Loop (Equivalent to read_serial in Python)
+    async function readLoop() {
+        // Line-by-line transformer logic
+        const textDecoder = new TextDecoderStream();
+        inputDone = port.readable.pipeTo(textDecoder.writable);
+        const inputStream = textDecoder.readable;
+        const lineReader = inputStream.getReader();
+
+        try {
+            while (true) {
+                const { value, done } = await lineReader.read();
+                if (done) break;
+                if (value) parseLine(value.trim());
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    // 3. Parsing (Equivalent to parse_any)
+    function parseLine(line) {
+        const parts = line.split(' ');
+        if (parts.length !== 3) return;
+
+        const fid = parseInt(parts[0], 16);
+        const nodeId = fid >> 6;
+        const msgType = fid & 0x3F;
+        const hexData = parts[2];
+
+        // Convert hex string to DataView
+        const bytes = new Uint8Array(hexData.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        const view = new DataView(bytes.buffer);
+
+        let val;
+        // Example: Parsing a Float32 (equiv to '<f')
+        try {
+            if (msgType >= 32) { // Telemetry range
+                val = view.getFloat32(0, true); // Little Endian
+                updateUI(nodeId, msgType, val.toFixed(3));
+            }
+        } catch(e) {}
+    }
+
+    function updateUI(nid, mid, val) {
+        const id = `tele-m${mid}`;
+        let el = document.getElementById(id);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = id;
+            el.className = 'telemetry-row';
+            document.getElementById('telemetry-list').appendChild(el);
+        }
+        el.innerHTML = `<span>[${mid}] Telemetry:</span> <span>${val}</span>`;
+    }
+
+    // Initialize Chart.js
+    const ctx = document.getElementById('telemetryChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Telemetry', data: [], borderColor: '#5dade2', tension: 0.1 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } }
+    });
+</script>
+</body>
+</html>
