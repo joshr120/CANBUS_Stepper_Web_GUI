@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #212121; --header-bg: #2B2B2B; --card-bg: #1A1A1A;
+            --bg-color: #252525; --header-bg: #2B2B2B; --card-bg: #1A1A1A;
             --accent-blue: #3498db; --accent-green: #2ecc71; --accent-red: #a93226; --text-color: #ffffff;
             --border: #3E3E3E; --stale-color: #555555;
             --accent-orange: #e67e22;
@@ -23,6 +23,22 @@
             height: 100vh; 
             overflow: hidden; 
         }
+
+        /* --- SIDEBAR SYSTEM --- */
+        #sidebar {
+            position: fixed; left: -250px; top: 60px; width: 250px; height: calc(100% - 110px);
+            background: var(--header-bg); border-right: 1px solid var(--border);
+            transition: 0.3s ease; z-index: 1200; display: flex; flex-direction: column; padding: 20px 0;
+        }
+        #sidebar.open { left: 0; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
+        .sidebar-item {
+            padding: 15px 25px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+            color: #aaa; transition: 0.2s; border-left: 4px solid transparent;
+        }
+        .sidebar-item:hover { background: #333; color: white; }
+        .sidebar-item.active { background: #1a1a1a; color: var(--accent-blue); border-left-color: var(--accent-blue); }
+
+        .hamburger { cursor: pointer; font-size: 1.5rem; padding: 5px; margin-right: 10px; user-select: none; }
 
         /* Connection Lock Overlay */
         #connectionOverlay {
@@ -48,7 +64,32 @@
         .header-spacer { flex: 1; }
         .header-left, .header-right { display: flex; align-items: center; gap: 15px; }
 
-        main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; padding: 25px; flex: 1; overflow: hidden; }
+        main { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 1fr 1fr; 
+            gap: 20px; 
+            padding: 25px; 
+            flex: 1; 
+            overflow: hidden; 
+            box-sizing: border-box;
+        }
+
+        /* --- MOTION STUDIO VIEW --- */
+        #motion-studio-view {
+            display: none;
+            grid-template-columns: 500px 1fr;
+            grid-template-rows: 1fr;
+            gap: 20px;
+            padding: 25px;
+            flex: 1;
+            overflow: hidden;
+        }
+        .planner-table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.85em; }
+        .planner-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); color: #888; }
+        .planner-table td { padding: 8px; border-bottom: 1px solid #222; }
+        .planner-input { background: #111; border: 1px solid #444; color: white; padding: 4px; border-radius: 3px; width: 70px; font-family: monospace; }
+        .btn-delete { color: var(--accent-red); cursor: pointer; font-weight: bold; text-align: center; }
 
         footer { height: 50px; background: var(--header-bg); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; z-index: 1001; }
 
@@ -65,7 +106,6 @@
         #nodeCounter { cursor: pointer; text-decoration: underline; color: #888; margin-left: 5px; transition: color 0.2s; }
         #nodeCounter:hover { color: var(--accent-blue); }
 
-        /* Modal Base */
         .modal-overlay { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
         .modal-content { background: var(--card-bg); border: 1px solid var(--border); padding: 25px; border-radius: 12px; width: 420px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         
@@ -97,7 +137,7 @@
         input, select { background: #333; color: white; border: 1px solid var(--border); padding: 5px; border-radius: 4px; }
         .preview-box { font-family: monospace; background: #000; padding: 5px 10px; border-radius: 4px; color: #aaa; border: 1px solid #444; min-width: 150px; font-size: 0.85em; }
 
-        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
+        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         
         .scroll-header { 
             padding: 0 12px; 
@@ -121,7 +161,7 @@
         .data-value.stale { color: var(--stale-color); }
         .inline-edit { background: #444; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: monospace; border-radius: 2px; }
 
-        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; min-height: 0; }
+        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; min-height: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 6px; border: 1px solid #444; }
 
         #progFirmwareBtn { height: 32px; padding: 0 15px; font-size: 0.75em; display: flex; align-items: center; }
@@ -133,6 +173,11 @@
 <body>
 
 <div id="connectionOverlay"></div>
+
+<nav id="sidebar">
+    <div class="sidebar-item active" onclick="switchView('dashboard', this)"><span>📊</span> Dashboard</div>
+    <div class="sidebar-item" onclick="switchView('motion', this)"><span>🎬</span> Motion Studio</div>
+</nav>
 
 <div id="nodeModal" class="modal-overlay">
     <div class="modal-content">
@@ -154,15 +199,13 @@
         <p style="font-size: 0.9em; line-height: 1.5; color: #ccc;">
             Download the latest <b>.bin</b> from the GitHub and set the flash address to <b>0x0000</b>.
         </p>
-        <p style="font-size: 0.9em; line-height: 1.5; color: #ccc;">
-            Alternatively, you can compile and flash the source code also located in the GitHub.
-        </p>
         <button class="btn btn-grey" style="width:100%; margin-top: 15px; justify-content: center;" onclick="closeModals()">Close</button>
     </div>
 </div>
 
 <header>
     <div class="header-left">
+        <div class="hamburger" id="hamBtn">☰</div>
         <button id="connectBtn" class="btn glow-active">
             <span id="connIcon" style="font-size: 1.2em;">🔗</span>
             <span id="connText">Connect Serial</span>
@@ -181,7 +224,7 @@
     </div>
 </header>
 
-<main>
+<main id="dashboard-view">
     <div class="scroll-container">
         <div class="scroll-header">
             <div class="header-title-group">
@@ -225,6 +268,36 @@
     </div>
 </main>
 
+<div id="motion-studio-view">
+    <div class="scroll-container">
+        <div class="scroll-header">
+            <div class="header-title-group">
+                <span class="header-main">SEQUENCE PLANNER</span>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <button class="btn btn-grey" onclick="sortWaypoints()" style="padding:4px 8px">SORT</button>
+                <button class="btn" onclick="addWaypoint()" style="background:#2ecc71; padding:4px 8px">+ STEP</button>
+            </div>
+        </div>
+        <div class="scroll-content">
+            <table class="planner-table">
+                <thead><tr><th>Time(ms)</th><th>Node</th><th>Cmd</th><th>Value</th><th></th></tr></thead>
+                <tbody id="waypointBody"></tbody>
+            </table>
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <button id="playBtn" class="btn btn-send" style="flex:1; justify-content:center" onclick="runSequence()">▶ RUN</button>
+                <button class="btn btn-grey" style="flex:1; justify-content:center" onclick="stopSequence()">■ STOP</button>
+            </div>
+        </div>
+    </div>
+    <div class="scroll-container">
+        <div class="scroll-header"><span class="header-main">MULTI-NODE TIMELINE</span></div>
+        <div class="scroll-content" style="padding:15px">
+            <canvas id="plannerChart"></canvas>
+        </div>
+    </div>
+</div>
+
 <footer>
     <div class="logo-container">
         <img src="img/footer.png" alt="Company Logo" onerror="this.style.display='none';">
@@ -240,15 +313,16 @@
 </footer>
 
 <script>
+    // --- DATA STRUCTURES ---
     const CAN_FORMATS = {
         0:  ["NOP", null], 1: ["Set Position (deg)", 'Float64'], 2: ["Set Position (steps)", 'BigInt64'],
         3:  ["Set Velocity (deg/s)", 'Float32'], 4: ["Set Current (%)", 'Uint16'], 5: ["Enable (0/1)", 'Uint8'],
-        6:  ["Emergency Stop", null], 7: ["Sensorless Home (Dir)", 'Uint8'], 9: ["LED 1 State", 'Uint8'],
+        6:  ["Emergency Stop", null], 7: ["Sensorless Home (Dir)", 'Uint8'], 8: ["Zero Enc at Boot", 'Uint8'], 9: ["LED 1 State", 'Uint8'],
         10: ["Steps per Rev", 'Uint16'], 11: ["Microsteps", 'Uint16'], 12: ["Stallguard Threshold", 'Int16'],
         13: ["Closed Loop Type (0/1)", 'Int16'], 14: ["Standstill Mode", 'Uint16'], 15: ["Map Direction (0/1)", 'Uint8'],
         16: ["Position Speed", 'Float32'], 17: ["Acceleration", 'Float32'], 18: ["Deceleration", 'Float32'],
         19: ["Report Frequency (f1,f2)", 'Special19'], 20: ["Boot Enable (0/1)", 'Uint8'], 21: ["3V3 LED Disable", 'Uint8'],
-        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["Zero Enc at Boot", 'Uint8']
+        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16']
     };
 
     const TELEMETRY_FIELDS = {
@@ -263,6 +337,7 @@
     const startTime = Date.now(), telemetryWatchdogs = {};
     let timeWindowSeconds = 30;
 
+    // --- CHARTING ---
     const ctx = document.getElementById('telemetryChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line', data: { datasets: [] },
@@ -276,6 +351,141 @@
         }
     });
 
+    const pCtx = document.getElementById('plannerChart').getContext('2d');
+    const plannerChart = new Chart(pCtx, {
+        type: 'line', 
+        data: { datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { x: { type: 'linear', title: { display: true, text: 'Time (ms)' }, grid: {color: '#333'}, ticks: {color: '#888'} }, y: { grid: {color: '#333'}, ticks: {color: '#888'} } },
+            plugins: { legend: { labels: { color: '#fff' } } }
+        }
+    });
+
+    // --- SIDEBAR & VIEW LOGIC ---
+    const sidebar = document.getElementById('sidebar');
+    const hamBtn = document.getElementById('hamBtn');
+    
+    hamBtn.onclick = (e) => { e.stopPropagation(); sidebar.classList.toggle('open'); };
+    document.onclick = () => sidebar.classList.remove('open');
+    sidebar.onclick = (e) => e.stopPropagation();
+
+    function switchView(view, el) {
+        document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('dashboard-view').style.display = (view === 'dashboard') ? 'grid' : 'none';
+        document.getElementById('motion-studio-view').style.display = (view === 'motion') ? 'grid' : 'none';
+        if(view === 'motion') { updatePlanChart(); renderWaypoints(); }
+    }
+
+    // --- SEQUENCER LOGIC ---
+    let waypoints = [{ time: 0, nid: 1, mid: 1, val: 0 }, { time: 2000, nid: 1, mid: 1, val: 90 }];
+    let isPlaying = false, sequenceStartTime, seqFrameReq, currentPlayheadPos = 0;
+
+    function addWaypoint() {
+        const lastTime = waypoints.length > 0 ? waypoints[waypoints.length-1].time + 1000 : 0;
+        waypoints.push({ time: lastTime, nid: document.getElementById('nodeIdSelect').value, mid: 1, val: 0 });
+        renderWaypoints(); updatePlanChart();
+    }
+
+    function sortWaypoints() {
+        waypoints.sort((a, b) => a.time - b.time);
+        renderWaypoints(); updatePlanChart();
+    }
+
+    function renderWaypoints() {
+        const body = document.getElementById('waypointBody'); body.innerHTML = '';
+        waypoints.forEach((wp, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input class="planner-input" type="number" value="${wp.time}" onchange="waypoints[${i}].time=parseInt(this.value);updatePlanChart()"></td>
+                <td><input class="planner-input" style="width:40px" type="number" value="${wp.nid}" onchange="waypoints[${i}].nid=parseInt(this.value);updatePlanChart()"></td>
+                <td><select class="planner-input" style="width:120px" onchange="waypoints[${i}].mid=this.value;updatePlanChart()">
+                    ${Object.entries(CAN_FORMATS).filter(f => f[1][1]).map(([id,n])=>`<option value="${id}" ${wp.mid==id?'selected':''}>${n[0]}</option>`).join('')}
+                </select></td>
+                <td><input class="planner-input" type="number" value="${wp.val}" onchange="waypoints[${i}].val=parseFloat(this.value);updatePlanChart()"></td>
+                <td class="btn-delete" onclick="waypoints.splice(${i},1);renderWaypoints();updatePlanChart()">✕</td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    function updatePlanChart() {
+        const nodeGroups = {};
+        waypoints.forEach(wp => {
+            if (!nodeGroups[wp.nid]) nodeGroups[wp.nid] = [];
+            nodeGroups[wp.nid].push({ x: wp.time, y: wp.val });
+        });
+
+        const datasets = Object.keys(nodeGroups).map((nid, index) => {
+            const data = nodeGroups[nid].sort((a,b) => a.x - b.x);
+            const steppedData = [];
+            for(let i=0; i<data.length; i++) {
+                if (i > 0) steppedData.push({ x: data[i].x, y: data[i-1].y });
+                steppedData.push(data[i]);
+            }
+            return {
+                label: `Node ${nid}`,
+                data: steppedData,
+                borderColor: `hsl(${index * 137.5}, 70%, 50%)`,
+                borderWidth: 2,
+                tension: 0,
+                pointRadius: 4
+            };
+        });
+
+        datasets.push({
+            label: 'Playhead',
+            data: [{x: currentPlayheadPos, y: -10000}, {x: currentPlayheadPos, y: 10000}],
+            borderColor: 'rgba(255, 255, 255, 0.8)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            order: -1
+        });
+
+        plannerChart.data.datasets = datasets;
+        const allY = waypoints.length > 0 ? waypoints.map(w => w.val) : [0];
+        plannerChart.options.scales.y.min = Math.min(...allY) - 10;
+        plannerChart.options.scales.y.max = Math.max(...allY) + 10;
+        plannerChart.update('none');
+    }
+
+    async function runSequence() {
+        if (!port || isPlaying) return;
+        sortWaypoints();
+        isPlaying = true;
+        document.getElementById('playBtn').innerText = "⏹ RUNNING";
+        sequenceStartTime = performance.now();
+        const pending = [...waypoints];
+        
+        function tick() {
+            if (!isPlaying) return;
+            const elapsed = performance.now() - sequenceStartTime;
+            currentPlayheadPos = elapsed;
+
+            while(pending.length > 0 && pending[0].time <= elapsed) {
+                const wp = pending.shift();
+                const canId = (wp.nid << 6) | (wp.mid & 0x3F);
+                sendRaw(`${canId.toString(16).toUpperCase()} 0 ${constructPayload(wp.mid, wp.val)}`);
+            }
+
+            updatePlanChart();
+            if (pending.length > 0) seqFrameReq = requestAnimationFrame(tick);
+            else setTimeout(stopSequence, 500);
+        }
+        tick();
+    }
+
+    function stopSequence() {
+        isPlaying = false;
+        cancelAnimationFrame(seqFrameReq);
+        currentPlayheadPos = 0;
+        document.getElementById('playBtn').innerText = "▶ RUN";
+        updatePlanChart();
+    }
+
+    // --- CORE COMMUNICATION ---
     function updateLed(state) {
         const led = document.getElementById('statusLed');
         led.className = 'led-circle led-' + state;
@@ -286,115 +496,39 @@
     }
 
     function refreshSystemStatus() {
-        const indicator = document.getElementById('statusIndicator');
-        const counter = document.getElementById('nodeCounter');
-        const led = document.getElementById('statusLed');
-        const overlay = document.getElementById('connectionOverlay');
-        const connectBtn = document.getElementById('connectBtn');
-        const connIcon = document.getElementById('connIcon');
-        const connText = document.getElementById('connText');
+        const indicator = document.getElementById('statusIndicator'), counter = document.getElementById('nodeCounter');
+        const led = document.getElementById('statusLed'), overlay = document.getElementById('connectionOverlay');
+        const connectBtn = document.getElementById('connectBtn'), connIcon = document.getElementById('connIcon'), connText = document.getElementById('connText');
 
         if (!keepReading) {
-            indicator.innerText = "Offline";
-            indicator.style.color = "var(--accent-red)";
-            counter.innerText = "";
-            led.className = 'led-circle led-offline';
-            overlay.style.display = 'flex';
-            connectBtn.classList.add('glow-active');
+            indicator.innerText = "Offline"; indicator.style.color = "var(--accent-red)";
+            counter.innerText = ""; led.className = 'led-circle led-offline';
+            overlay.style.display = 'flex'; connectBtn.classList.add('glow-active');
             connectBtn.classList.remove('btn-disconnect');
-            connIcon.innerText = "🔗";
-            connText.innerText = "Connect Serial";
+            connIcon.innerText = "🔗"; connText.innerText = "Connect Serial";
             return;
         }
 
         overlay.style.display = 'none';
         connectBtn.classList.remove('glow-active');
         connectBtn.classList.add('btn-disconnect');
-        connIcon.innerText = "🔌";
-        connText.innerText = "Disconnect";
+        connIcon.innerText = "🔌"; connText.innerText = "Disconnect";
 
         const count = foundNodes.size;
         if (count > 0) {
-            indicator.innerText = "Active";
-            indicator.style.color = "var(--accent-green)";
+            indicator.innerText = "Active"; indicator.style.color = "var(--accent-green)";
             led.className = 'led-circle led-active';
             counter.innerText = `(${count} NODE${count !== 1 ? 'S' : ''} FOUND)`;
         } else {
-            indicator.innerText = "STALE (NO NODES)";
-            indicator.style.color = "var(--accent-orange)";
+            indicator.innerText = "STALE (NO NODES)"; indicator.style.color = "var(--accent-orange)";
             led.className = 'led-circle led-stale';
             counter.innerText = "(0 NODES FOUND)";
         }
     }
 
-    function openModal() {
-        if (!keepReading) return;
-        updateModalList();
-        document.getElementById('nodeModal').style.display = 'flex';
-    }
-    
     function closeModals() { 
         document.getElementById('nodeModal').style.display = 'none';
         document.getElementById('firmwareModal').style.display = 'none';
-    }
-
-    function updateModalList() {
-        const grid = document.getElementById('nodeGrid');
-        grid.innerHTML = '';
-        if (foundNodes.size === 0) {
-            grid.innerHTML = '<div style="color:#555; width:100%;">No nodes currently responding...</div>';
-            return;
-        }
-        const sortedIds = Array.from(foundNodes.keys()).sort((a,b) => a - b);
-        sortedIds.forEach(id => {
-            const chip = document.createElement('div');
-            chip.className = 'node-chip';
-            chip.innerText = `ID ${id}`;
-            chip.onclick = () => {
-                document.getElementById('nodeIdSelect').value = id;
-                updatePreview();
-                closeModals();
-            };
-            grid.appendChild(chip);
-        });
-    }
-    document.getElementById('nodeCounter').onclick = openModal;
-    document.getElementById('progFirmwareBtn').onclick = () => {
-        document.getElementById('firmwareModal').style.display = 'flex';
-    };
-
-    function pruneNodes() {
-        const now = Date.now();
-        let changed = false;
-        for (const [nodeId, lastSeen] of foundNodes.entries()) {
-            if (now - lastSeen > 6500) { foundNodes.delete(nodeId); changed = true; }
-        }
-        if (changed) {
-            refreshSystemStatus();
-            if (document.getElementById('nodeModal').style.display === 'flex') updateModalList();
-        }
-    }
-
-    function initUI() {
-        const cfg = document.getElementById('config-list'), tel = document.getElementById('telemetry-list'), cmd = document.getElementById('cmdType');
-        cfg.innerHTML = ''; tel.innerHTML = ''; cmd.innerHTML = '';
-        Object.entries(CAN_FORMATS).forEach(([id, info]) => {
-            cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
-            cmd.innerHTML += `<option value="${id}">${id}: ${info[0]}</option>`;
-        });
-        cmd.selectedIndex = 1;
-        Object.entries(TELEMETRY_FIELDS).forEach(([id, info]) => {
-            tel.innerHTML += `<div class="data-row" data-mid="${id}" data-type="telemetry"><input type="checkbox" class="plot-trigger" data-mid="${id}"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
-        });
-        document.querySelectorAll('.data-row').forEach(row => {
-            row.addEventListener('dblclick', (e) => {
-                if(e.target.classList.contains('plot-trigger')) return;
-                const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
-                if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
-                else requestRtr(mid);
-            });
-        });
-        updatePreview();
     }
 
     function constructPayload(mid, valStr) {
@@ -403,9 +537,8 @@
         if (!type) return "0000000000000000";
         try {
             if (type === 'Special19') {
-                const cleaned = valStr.replace(/[()]/g, '');
-                const parts = cleaned.split(',').map(p => parseInt(p.trim()) || 0);
-                view.setUint16(0, parts[0] || 0, true); view.setUint16(2, parts[1] || 0, true);
+                const parts = valStr.toString().replace(/[()]/g, '').split(',').map(p => parseInt(p.trim()) || 0);
+                view.setUint16(0, parts[0], true); view.setUint16(2, parts[1], true);
             } else {
                 const val = parseFloat(valStr) || 0;
                 if (type === 'Float64') view.setFloat64(0, val, true);
@@ -425,20 +558,16 @@
         updateLed('blink');
         const parts = line.split(" "); if (parts.length < 3) return;
         const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
-        foundNodes.set(nid, Date.now());
-        refreshSystemStatus();
+        foundNodes.set(nid, Date.now()); refreshSystemStatus();
         const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
         if (!config) return;
         try {
             const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
             const view = new DataView(bytes.buffer);
             let val = 0, displayVal = "---";
-            if (config[1] === 'Special19') {
-                const f1 = view.getUint16(0, true), f2 = view.getUint16(2, true);
-                displayVal = `(${f1}, ${f2})`; val = f1; 
-            } else if (config[1] === 'Special35') {
-                displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0);
-            } else {
+            if (config[1] === 'Special19') { displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; val = view.getUint16(0,true); }
+            else if (config[1] === 'Special35') { displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0); }
+            else {
                 switch(config[1]) {
                     case 'Float64': val = view.getFloat64(0, true); break;
                     case 'Float32': val = view.getFloat32(0, true); break;
@@ -463,6 +592,28 @@
         } catch(e) {}
     }
 
+    function initUI() {
+        const cfg = document.getElementById('config-list'), tel = document.getElementById('telemetry-list'), cmd = document.getElementById('cmdType');
+        cfg.innerHTML = ''; tel.innerHTML = ''; cmd.innerHTML = '';
+        Object.entries(CAN_FORMATS).forEach(([id, info]) => {
+            cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
+            cmd.innerHTML += `<option value="${id}">${id}: ${info[0]}</option>`;
+        });
+        cmd.selectedIndex = 1;
+        Object.entries(TELEMETRY_FIELDS).forEach(([id, info]) => {
+            tel.innerHTML += `<div class="data-row" data-mid="${id}" data-type="telemetry"><input type="checkbox" class="plot-trigger" data-mid="${id}"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
+        });
+        document.querySelectorAll('.data-row').forEach(row => {
+            row.addEventListener('dblclick', (e) => {
+                if(e.target.classList.contains('plot-trigger')) return;
+                const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
+                if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
+                else requestRtr(mid);
+            });
+        });
+        updatePreview();
+    }
+
     function startInlineEdit(mid, valSpan) {
         if (valSpan.querySelector('input')) return;
         const originalText = valSpan.innerText === "---" ? "" : valSpan.innerText;
@@ -471,9 +622,8 @@
         const finishEdit = async (save) => {
             if (save && input.value !== originalText) {
                 const nid = document.getElementById('nodeIdSelect').value;
-                const payloadHex = constructPayload(mid, input.value);
                 const canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
-                await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${payloadHex}`);
+                await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${constructPayload(mid, input.value)}`);
                 valSpan.innerText = input.value;
                 setTimeout(triggerGlobalRefresh, 100);
             } else { valSpan.innerText = originalText || "---"; }
@@ -483,12 +633,6 @@
     }
 
     async function triggerGlobalRefresh() { for (let mid in CAN_FORMATS) { if (CAN_FORMATS[mid][1]) { requestRtr(mid); await new Promise(r => setTimeout(r, 40)); } } }
-    function updatePreview() {
-        const nid = document.getElementById('nodeIdSelect').value, mid = document.getElementById('cmdType').value;
-        const canId = (nid << 6) | (mid & 0x3F), payload = constructPayload(mid, document.getElementById('cmdValue').value);
-        const full = `${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${payload}`;
-        document.getElementById('previewStr').innerText = full; return full;
-    }
     async function sendRaw(str) { if (port?.writable) { const w = port.writable.getWriter(); await w.write(new TextEncoder().encode(str + "\n")); w.releaseLock(); } }
     function requestRtr(mid) { const nid = document.getElementById('nodeIdSelect').value, canId = (nid << 6) | (mid & 0x3F); sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`); }
     function handleWatchdog(mid) { 
@@ -498,43 +642,19 @@
         telemetryWatchdogs[mid] = setTimeout(() => el.classList.add('stale'), 2000);
     }
 
-    function downloadCSV() {
-        if (chart.data.datasets.length === 0) {
-            alert("No data to save. Select fields and start telemetry first.");
-            return;
-        }
-        let csvContent = "data:text/csv;charset=utf-8,";
-        const headers = ["Timestamp (s)"];
-        chart.data.datasets.forEach(ds => headers.push(ds.label));
-        csvContent += headers.join(",") + "\r\n";
-        const allTimestamps = new Set();
-        chart.data.datasets.forEach(ds => { ds.data.forEach(point => allTimestamps.add(point.x.toFixed(3))); });
-        const sortedTimes = Array.from(allTimestamps).sort((a, b) => parseFloat(a) - parseFloat(b));
-        sortedTimes.forEach(t => {
-            const row = [t];
-            chart.data.datasets.forEach(ds => {
-                const found = ds.data.find(p => p.x.toFixed(3) === t);
-                row.push(found ? found.y : "");
-            });
-            csvContent += row.join(",") + "\r\n";
-        });
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `telemetry_export_${new Date().getTime()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    function updatePreview() {
+        const nid = document.getElementById('nodeIdSelect').value, mid = document.getElementById('cmdType').value;
+        const full = `${((nid<<6)|mid).toString(16).toUpperCase().padStart(2, '0')} 0 ${constructPayload(mid, document.getElementById('cmdValue').value)}`;
+        document.getElementById('previewStr').innerText = full; return full;
     }
 
+    // --- BUTTON BINDINGS ---
     document.getElementById('connectBtn').onclick = async () => {
         if (port) { location.reload(); return; }
         try {
             port = await navigator.serial.requestPort(); await port.open({ baudRate: 115200 });
-            keepReading = true; 
-            refreshSystemStatus();
+            keepReading = true; refreshSystemStatus();
             setTimeout(triggerGlobalRefresh, 500);
-            setInterval(() => { if(keepReading) { sendRaw("00 1 0000000000000000"); pruneNodes(); } }, 5000);
             const textDecoder = new TextDecoderStream(); port.readable.pipeTo(textDecoder.writable);
             reader = textDecoder.readable.getReader(); let buffer = "";
             while (keepReading) { const { value, done } = await reader.read(); if (done) break; buffer += value; let lines = buffer.split("\n"); buffer = lines.pop(); lines.forEach(l => parseLine(l.trim())); }
@@ -546,32 +666,39 @@
         if (confirm("Save settings to flash?")) {
             const canId = (parseInt(nid) << 6) | (24 & 0x3F);
             await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 0000000000000000`);
-            const btn = document.getElementById('saveFlashBtn');
-            btn.innerText = "SAVED!";
-            setTimeout(() => { btn.innerText = "Save to Flash"; }, 1500);
+            document.getElementById('saveFlashBtn').innerText = "SAVED!";
+            setTimeout(() => { document.getElementById('saveFlashBtn').innerText = "Save to Flash"; }, 1500);
         }
     };
 
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('plot-trigger')) {
-            const nid = document.getElementById('nodeIdSelect').value, mid = e.target.dataset.mid, key = `${nid}-${mid}`;
-            if (e.target.checked) {
-                const hue = Math.random() * 360;
-                chart.data.datasets.push({ label: `N${nid}: ${TELEMETRY_FIELDS[mid][0]}`, data: [], borderColor: `hsl(${hue},70%,60%)`, borderWidth: 1.5, pointRadius: 1.5, tension: 0.4, key: key });
-            } else chart.data.datasets = chart.data.datasets.filter(ds => ds.key !== key);
-            chart.update();
-        }
-    });
-
+    document.getElementById('nodeCounter').onclick = () => { 
+        const grid = document.getElementById('nodeGrid'); grid.innerHTML = '';
+        Array.from(foundNodes.keys()).sort((a,b)=>a-b).forEach(id => {
+            const chip = document.createElement('div'); chip.className = 'node-chip'; chip.innerText = `ID ${id}`;
+            chip.onclick = () => { document.getElementById('nodeIdSelect').value = id; updatePreview(); closeModals(); };
+            grid.appendChild(chip);
+        });
+        document.getElementById('nodeModal').style.display = 'flex'; 
+    };
+    
+    document.getElementById('progFirmwareBtn').onclick = () => document.getElementById('firmwareModal').style.display = 'flex';
     document.getElementById('sendBtn').onclick = () => sendRaw(updatePreview());
     document.getElementById('refreshRtr').onclick = triggerGlobalRefresh;
     document.getElementById('clearChartBtn').onclick = () => { chart.data.datasets.forEach(d => d.data = []); chart.update(); };
     document.getElementById('resetGraphBtn').onclick = () => { document.querySelectorAll('.plot-trigger').forEach(cb => cb.checked = false); chart.data.datasets = []; chart.update(); };
-    document.getElementById('saveCsvBtn').onclick = downloadCSV;
     document.getElementById('timeBaseSelect').onchange = (e) => timeWindowSeconds = parseInt(e.target.value);
     document.getElementById('freezeToggle').onchange = (e) => isFrozen = e.target.checked;
     ['cmdType', 'cmdValue', 'nodeIdSelect'].forEach(id => document.getElementById(id).oninput = updatePreview);
-    
+
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('plot-trigger')) {
+            const nid = document.getElementById('nodeIdSelect').value, mid = e.target.dataset.mid, key = `${nid}-${mid}`;
+            if (e.target.checked) chart.data.datasets.push({ label: `N${nid}: ${TELEMETRY_FIELDS[mid][0]}`, data: [], borderColor: `hsl(${Math.random()*360},70%,60%)`, borderWidth: 1.5, pointRadius: 1.5, tension: 0.4, key: key });
+            else chart.data.datasets = chart.data.datasets.filter(ds => ds.key !== key);
+            chart.update();
+        }
+    });
+
     initUI();
 </script>
 </body>
