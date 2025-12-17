@@ -556,18 +556,34 @@
     function parseLine(line) {
         if (!line) return;
         updateLed('blink');
-        const parts = line.split(" "); if (parts.length < 3) return;
-        const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
-        foundNodes.set(nid, Date.now()); refreshSystemStatus();
+        const parts = line.split(" "); 
+        if (parts.length < 3) return;
+
+        const fid = parseInt(parts[0], 16);
+        const nid = fid >> 6; 
+        const mid = fid & 0x3F;
+
+        // NEW: Ignore Node 0 as it is reserved for global broadcast
+        if (nid > 0) {
+            foundNodes.set(nid, Date.now()); 
+            refreshSystemStatus();
+        }
+
         const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
         if (!config) return;
+
         try {
             const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
             const view = new DataView(bytes.buffer);
             let val = 0, displayVal = "---";
-            if (config[1] === 'Special19') { displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; val = view.getUint16(0,true); }
-            else if (config[1] === 'Special35') { displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0); }
-            else {
+
+            if (config[1] === 'Special19') { 
+                displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; 
+                val = view.getUint16(0,true); 
+            } else if (config[1] === 'Special35') { 
+                displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; 
+                val = view.getUint8(0); 
+            } else {
                 switch(config[1]) {
                     case 'Float64': val = view.getFloat64(0, true); break;
                     case 'Float32': val = view.getFloat32(0, true); break;
@@ -579,17 +595,33 @@
                 }
                 displayVal = Number.isInteger(val) ? val : val.toFixed(2);
             }
+
+            // Only update UI if the message belongs to the currently selected Target Node
             if (nid == document.getElementById('nodeIdSelect').value) {
                 const el = document.getElementById(`val-${mid}`);
-                if (el && !el.querySelector('input')) { el.innerText = displayVal; handleWatchdog(mid); }
+                if (el && !el.querySelector('input')) { 
+                    el.innerText = displayVal; 
+                    handleWatchdog(mid); 
+                }
             }
+
+            // Update Graph if this specific Node/Message combo is being plotted
             const ds = chart.data.datasets.find(d => d.key === `${nid}-${mid}`);
             if (ds) {
                 const currentTime = (Date.now() - startTime) / 1000;
                 ds.data.push({ x: currentTime, y: val });
-                if (!isFrozen) { chart.options.scales.x.min = currentTime - timeWindowSeconds; chart.options.scales.x.max = currentTime; chart.update('none'); }
+
+                // Delete old data that has fallen off the back of the graph
+                const cutoffTime = currentTime - timeWindowSeconds;
+                ds.data = ds.data.filter(point => point.x >= cutoffTime);
+                
+                if (!isFrozen) { 
+                    chart.options.scales.x.min = currentTime - timeWindowSeconds; 
+                    chart.options.scales.x.max = currentTime; 
+                    chart.update('none'); 
+                }
             }
-        } catch(e) {}
+        } catch(e) { console.error("Parse error:", e); }
     }
 
     function initUI() {
@@ -648,6 +680,50 @@
         document.getElementById('previewStr').innerText = full; return full;
     }
 
+    // Add this interval to prune nodes that haven't sent data recently
+    setInterval(() => {
+        if (!keepReading) return;
+        const now = Date.now();
+        let changed = false;
+
+        for (const [nid, lastSeen] of foundNodes.entries()) {
+            if (now - lastSeen > 5000) { // 5 second timeout
+                foundNodes.delete(nid);
+                changed = true;
+            }
+        }
+
+        // If a node was removed, update the UI indicators
+        if (changed) {
+            refreshSystemStatus();
+            // If the node selection modal is currently open, refresh its list too
+            if (document.getElementById('nodeModal').style.display === 'flex') {
+                showNodeSelector(); 
+            }
+        }
+    }, 1000);
+
+    // This function populates the "Discovered Nodes" modal with only active nodes
+    function showNodeSelector() {
+        const grid = document.getElementById('nodeGrid');
+        grid.innerHTML = ''; // Clear old chips
+        
+        // Sort node IDs numerically
+        const sorted = Array.from(foundNodes.keys()).sort((a, b) => a - b);
+        
+        sorted.forEach(nid => {
+            const chip = document.createElement('div');
+            chip.className = 'node-chip';
+            chip.innerText = `NODE ${nid}`;
+            chip.onclick = () => {
+                document.getElementById('nodeIdSelect').value = nid;
+                closeModals();
+            };
+            grid.appendChild(chip);
+        });
+        document.getElementById('nodeModal').style.display = 'flex';
+    }
+
     // --- BUTTON BINDINGS ---
     document.getElementById('connectBtn').onclick = async () => {
         if (port) { location.reload(); return; }
@@ -672,12 +748,24 @@
     };
 
     document.getElementById('nodeCounter').onclick = () => { 
-        const grid = document.getElementById('nodeGrid'); grid.innerHTML = '';
-        Array.from(foundNodes.keys()).sort((a,b)=>a-b).forEach(id => {
-            const chip = document.createElement('div'); chip.className = 'node-chip'; chip.innerText = `ID ${id}`;
-            chip.onclick = () => { document.getElementById('nodeIdSelect').value = id; updatePreview(); closeModals(); };
-            grid.appendChild(chip);
-        });
+        const grid = document.getElementById('nodeGrid'); 
+        grid.innerHTML = '';
+        
+        // Filter and sort discovered nodes (ensuring Node 0 is never included)
+        Array.from(foundNodes.keys())
+            .filter(id => id > 0) 
+            .sort((a,b) => a - b)
+            .forEach(id => {
+                const chip = document.createElement('div'); 
+                chip.className = 'node-chip'; 
+                chip.innerText = `ID ${id}`;
+                chip.onclick = () => { 
+                    document.getElementById('nodeIdSelect').value = id; 
+                    updatePreview(); 
+                    closeModals(); 
+                };
+                grid.appendChild(chip);
+            });
         document.getElementById('nodeModal').style.display = 'flex'; 
     };
     
@@ -688,6 +776,7 @@
     document.getElementById('resetGraphBtn').onclick = () => { document.querySelectorAll('.plot-trigger').forEach(cb => cb.checked = false); chart.data.datasets = []; chart.update(); };
     document.getElementById('timeBaseSelect').onchange = (e) => timeWindowSeconds = parseInt(e.target.value);
     document.getElementById('freezeToggle').onchange = (e) => isFrozen = e.target.checked;
+    document.getElementById('nodeCounter').onclick = showNodeSelector;
     ['cmdType', 'cmdValue', 'nodeIdSelect'].forEach(id => document.getElementById(id).oninput = updatePreview);
 
     document.addEventListener('change', (e) => {
