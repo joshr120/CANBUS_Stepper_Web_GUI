@@ -90,6 +90,7 @@
         .planner-table td { padding: 8px; border-bottom: 1px solid #222; }
         .planner-input { background: #111; border: 1px solid #444; color: white; padding: 4px; border-radius: 3px; width: 70px; font-family: monospace; }
         .btn-delete { color: var(--accent-red); cursor: pointer; font-weight: bold; text-align: center; }
+        .node-separator { background: #333; color: var(--accent-blue); font-size: 0.7em; font-weight: bold; padding: 2px 8px !important; letter-spacing: 1px; }
 
         footer { height: 50px; background: var(--header-bg); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; z-index: 1001; }
 
@@ -271,8 +272,13 @@
 <div id="motion-studio-view">
     <div class="scroll-container">
         <div class="scroll-header">
-            <div class="header-title-group">
+            <div class="header-title-group" style="flex-direction: column; gap: 2px;">
                 <span class="header-main">SEQUENCE PLANNER</span>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn btn-grey" onclick="exportWaypoints()" style="padding: 2px 6px; font-size: 0.6em;">EXPORT CSV</button>
+                    <button class="btn btn-grey" onclick="document.getElementById('importFile').click()" style="padding: 2px 6px; font-size: 0.6em;">IMPORT CSV</button>
+                    <input type="file" id="importFile" style="display:none" accept=".csv" onchange="importWaypoints(this)">
+                </div>
             </div>
             <div style="display:flex; gap:5px;">
                 <button class="btn btn-grey" onclick="sortWaypoints()" style="padding:4px 8px">SORT</button>
@@ -376,6 +382,7 @@
         document.getElementById('dashboard-view').style.display = (view === 'dashboard') ? 'grid' : 'none';
         document.getElementById('motion-studio-view').style.display = (view === 'motion') ? 'grid' : 'none';
         if(view === 'motion') { updatePlanChart(); renderWaypoints(); }
+        sidebar.classList.remove('open');
     }
 
     // --- SEQUENCER LOGIC ---
@@ -384,23 +391,36 @@
 
     function addWaypoint() {
         const lastTime = waypoints.length > 0 ? waypoints[waypoints.length-1].time + 1000 : 0;
-        waypoints.push({ time: lastTime, nid: document.getElementById('nodeIdSelect').value, mid: 1, val: 0 });
+        const currentTarget = parseInt(document.getElementById('nodeIdSelect').value) || 1;
+        waypoints.push({ time: lastTime, nid: currentTarget, mid: 1, val: 0 });
         renderWaypoints(); updatePlanChart();
     }
 
     function sortWaypoints() {
-        waypoints.sort((a, b) => a.time - b.time);
+        waypoints.sort((a, b) => {
+            if (a.nid !== b.nid) return a.nid - b.nid;
+            return a.time - b.time;
+        });
         renderWaypoints(); updatePlanChart();
     }
 
     function renderWaypoints() {
         const body = document.getElementById('waypointBody'); body.innerHTML = '';
+        let lastNid = null;
+
         waypoints.forEach((wp, i) => {
+            if (lastNid !== null && lastNid !== wp.nid) {
+                const sep = document.createElement('tr');
+                sep.innerHTML = `<td colspan="5" class="node-separator">NODE ${wp.nid} SEQUENCE</td>`;
+                body.appendChild(sep);
+            }
+            lastNid = wp.nid;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><input class="planner-input" type="number" value="${wp.time}" onchange="waypoints[${i}].time=parseInt(this.value);updatePlanChart()"></td>
                 <td><input class="planner-input" style="width:40px" type="number" value="${wp.nid}" onchange="waypoints[${i}].nid=parseInt(this.value);updatePlanChart()"></td>
-                <td><select class="planner-input" style="width:120px" onchange="waypoints[${i}].mid=this.value;updatePlanChart()">
+                <td><select class="planner-input" style="width:120px" onchange="waypoints[${i}].mid=parseInt(this.value);updatePlanChart()">
                     ${Object.entries(CAN_FORMATS).filter(f => f[1][1]).map(([id,n])=>`<option value="${id}" ${wp.mid==id?'selected':''}>${n[0]}</option>`).join('')}
                 </select></td>
                 <td><input class="planner-input" type="number" value="${wp.val}" onchange="waypoints[${i}].val=parseFloat(this.value);updatePlanChart()"></td>
@@ -453,25 +473,22 @@
 
     async function runSequence() {
         if (!port || isPlaying) return;
-        sortWaypoints();
+        if (waypoints.length === 0) return;
         isPlaying = true;
         document.getElementById('playBtn').innerText = "⏹ RUNNING";
         sequenceStartTime = performance.now();
-        const pending = [...waypoints];
-        
-        function tick() {
+        const executionQueue = [...waypoints].sort((a, b) => a.time - b.time);
+        async function tick() {
             if (!isPlaying) return;
             const elapsed = performance.now() - sequenceStartTime;
             currentPlayheadPos = elapsed;
-
-            while(pending.length > 0 && pending[0].time <= elapsed) {
-                const wp = pending.shift();
+            while(executionQueue.length > 0 && executionQueue[0].time <= elapsed) {
+                const wp = executionQueue.shift();
                 const canId = (wp.nid << 6) | (wp.mid & 0x3F);
-                sendRaw(`${canId.toString(16).toUpperCase()} 0 ${constructPayload(wp.mid, wp.val)}`);
+                await sendRaw(`${canId.toString(16).toUpperCase()} 0 ${constructPayload(wp.mid, wp.val)}`);
             }
-
             updatePlanChart();
-            if (pending.length > 0) seqFrameReq = requestAnimationFrame(tick);
+            if (executionQueue.length > 0) seqFrameReq = requestAnimationFrame(tick);
             else setTimeout(stopSequence, 500);
         }
         tick();
@@ -485,21 +502,49 @@
         updatePlanChart();
     }
 
+    function exportWaypoints() {
+        if (waypoints.length === 0) return;
+        let csvContent = "Time(ms),NodeID,CommandID,Value\n";
+        waypoints.forEach(wp => { csvContent += `${wp.time},${wp.nid},${wp.mid},${wp.val}\n`; });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url); link.setAttribute("download", "keyframes.csv");
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+
+    function importWaypoints(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/);
+                const newWaypoints = [];
+                lines.forEach((line, index) => {
+                    if (line.trim() === "" || index === 0) return; 
+                    const parts = line.split(',');
+                    if (parts.length >= 4) newWaypoints.push({ time: parseInt(parts[0].trim()), nid: parseInt(parts[1].trim()), mid: parseInt(parts[2].trim()), val: parseFloat(parts[3].trim()) });
+                });
+                if (newWaypoints.length > 0) { waypoints = newWaypoints; renderWaypoints(); updatePlanChart(); }
+            } catch (err) { alert("Error parsing CSV."); }
+            input.value = '';
+        };
+        reader.readAsText(file);
+    }
+
     // --- CORE COMMUNICATION ---
     function updateLed(state) {
         const led = document.getElementById('statusLed');
         led.className = 'led-circle led-' + state;
-        if (state === 'blink') {
-            led.classList.add('led-blink');
-            setTimeout(refreshSystemStatus, 60); 
-        }
+        if (state === 'blink') { led.classList.add('led-blink'); setTimeout(refreshSystemStatus, 60); }
     }
 
     function refreshSystemStatus() {
         const indicator = document.getElementById('statusIndicator'), counter = document.getElementById('nodeCounter');
         const led = document.getElementById('statusLed'), overlay = document.getElementById('connectionOverlay');
         const connectBtn = document.getElementById('connectBtn'), connIcon = document.getElementById('connIcon'), connText = document.getElementById('connText');
-
         if (!keepReading) {
             indicator.innerText = "Offline"; indicator.style.color = "var(--accent-red)";
             counter.innerText = ""; led.className = 'led-circle led-offline';
@@ -508,12 +553,10 @@
             connIcon.innerText = "🔗"; connText.innerText = "Connect Serial";
             return;
         }
-
         overlay.style.display = 'none';
         connectBtn.classList.remove('glow-active');
         connectBtn.classList.add('btn-disconnect');
         connIcon.innerText = "🔌"; connText.innerText = "Disconnect";
-
         const count = foundNodes.size;
         if (count > 0) {
             indicator.innerText = "Active"; indicator.style.color = "var(--accent-green)";
@@ -558,31 +601,18 @@
         updateLed('blink');
         const parts = line.split(" "); 
         if (parts.length < 3) return;
-
-        const fid = parseInt(parts[0], 16);
-        const nid = fid >> 6; 
-        const mid = fid & 0x3F;
-
-        // NEW: Ignore Node 0 as it is reserved for global broadcast
-        if (nid > 0) {
-            foundNodes.set(nid, Date.now()); 
-            refreshSystemStatus();
-        }
-
+        const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
+        if (nid > 0) { foundNodes.set(nid, Date.now()); refreshSystemStatus(); }
         const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
         if (!config) return;
-
         try {
             const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
             const view = new DataView(bytes.buffer);
             let val = 0, displayVal = "---";
-
             if (config[1] === 'Special19') { 
-                displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; 
-                val = view.getUint16(0,true); 
+                displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; val = view.getUint16(0,true); 
             } else if (config[1] === 'Special35') { 
-                displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; 
-                val = view.getUint8(0); 
+                displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0); 
             } else {
                 switch(config[1]) {
                     case 'Float64': val = view.getFloat64(0, true); break;
@@ -595,31 +625,17 @@
                 }
                 displayVal = Number.isInteger(val) ? val : val.toFixed(2);
             }
-
-            // Only update UI if the message belongs to the currently selected Target Node
             if (nid == document.getElementById('nodeIdSelect').value) {
                 const el = document.getElementById(`val-${mid}`);
-                if (el && !el.querySelector('input')) { 
-                    el.innerText = displayVal; 
-                    handleWatchdog(mid); 
-                }
+                if (el && !el.querySelector('input')) { el.innerText = displayVal; handleWatchdog(mid); }
             }
-
-            // Update Graph if this specific Node/Message combo is being plotted
             const ds = chart.data.datasets.find(d => d.key === `${nid}-${mid}`);
             if (ds) {
                 const currentTime = (Date.now() - startTime) / 1000;
                 ds.data.push({ x: currentTime, y: val });
-
-                // Delete old data that has fallen off the back of the graph
                 const cutoffTime = currentTime - timeWindowSeconds;
                 ds.data = ds.data.filter(point => point.x >= cutoffTime);
-                
-                if (!isFrozen) { 
-                    chart.options.scales.x.min = currentTime - timeWindowSeconds; 
-                    chart.options.scales.x.max = currentTime; 
-                    chart.update('none'); 
-                }
+                if (!isFrozen) { chart.options.scales.x.min = currentTime - timeWindowSeconds; chart.options.scales.x.max = currentTime; chart.update('none'); }
             }
         } catch(e) { console.error("Parse error:", e); }
     }
@@ -653,8 +669,7 @@
         const input = valSpan.querySelector('input'); input.focus(); input.select();
         const finishEdit = async (save) => {
             if (save && input.value !== originalText) {
-                const nid = document.getElementById('nodeIdSelect').value;
-                const canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
+                const nid = document.getElementById('nodeIdSelect').value, canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
                 await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${constructPayload(mid, input.value)}`);
                 valSpan.innerText = input.value;
                 setTimeout(triggerGlobalRefresh, 100);
@@ -680,44 +695,23 @@
         document.getElementById('previewStr').innerText = full; return full;
     }
 
-    // Add this interval to prune nodes that haven't sent data recently
     setInterval(() => {
         if (!keepReading) return;
         const now = Date.now();
         let changed = false;
-
-        for (const [nid, lastSeen] of foundNodes.entries()) {
-            if (now - lastSeen > 5000) { // 5 second timeout
-                foundNodes.delete(nid);
-                changed = true;
-            }
-        }
-
-        // If a node was removed, update the UI indicators
-        if (changed) {
-            refreshSystemStatus();
-            // If the node selection modal is currently open, refresh its list too
-            if (document.getElementById('nodeModal').style.display === 'flex') {
-                showNodeSelector(); 
-            }
-        }
+        for (const [nid, lastSeen] of foundNodes.entries()) { if (now - lastSeen > 5000) { foundNodes.delete(nid); changed = true; } }
+        if (changed) { refreshSystemStatus(); if (document.getElementById('nodeModal').style.display === 'flex') { showNodeSelector(); } }
     }, 1000);
 
-    // This function populates the "Discovered Nodes" modal with only active nodes
     function showNodeSelector() {
-        const grid = document.getElementById('nodeGrid');
-        grid.innerHTML = ''; // Clear old chips
-        
-        // Sort node IDs numerically
+        const grid = document.getElementById('nodeGrid'); grid.innerHTML = '';
         const sorted = Array.from(foundNodes.keys()).sort((a, b) => a - b);
-        
         sorted.forEach(nid => {
-            const chip = document.createElement('div');
-            chip.className = 'node-chip';
-            chip.innerText = `NODE ${nid}`;
-            chip.onclick = () => {
-                document.getElementById('nodeIdSelect').value = nid;
-                closeModals();
+            const chip = document.createElement('div'); chip.className = 'node-chip'; chip.innerText = `NODE ${nid}`;
+            chip.onclick = () => { 
+                document.getElementById('nodeIdSelect').value = nid; 
+                closeModals(); 
+                document.getElementById('nodeIdSelect').dispatchEvent(new Event('change'));
             };
             grid.appendChild(chip);
         });
@@ -729,12 +723,30 @@
         if (port) { location.reload(); return; }
         try {
             port = await navigator.serial.requestPort(); await port.open({ baudRate: 115200 });
-            keepReading = true; refreshSystemStatus();
-            setTimeout(triggerGlobalRefresh, 500);
+            keepReading = true; refreshSystemStatus(); setTimeout(triggerGlobalRefresh, 500);
             const textDecoder = new TextDecoderStream(); port.readable.pipeTo(textDecoder.writable);
             reader = textDecoder.readable.getReader(); let buffer = "";
             while (keepReading) { const { value, done } = await reader.read(); if (done) break; buffer += value; let lines = buffer.split("\n"); buffer = lines.pop(); lines.forEach(l => parseLine(l.trim())); }
         } catch(e) {}
+    };
+
+    // FIXED: Target node logic updates UI and maintains telemetry checkboxes
+    document.getElementById('nodeIdSelect').onchange = () => {
+        const newNid = document.getElementById('nodeIdSelect').value;
+        updatePreview();
+        
+        // Reset displayed values for the new node
+        document.querySelectorAll('.data-value').forEach(v => v.innerText = "---");
+        
+        // Sync checkboxes: Check if a dataset already exists for this node+mid key
+        document.querySelectorAll('.plot-trigger').forEach(cb => {
+            const mid = cb.dataset.mid;
+            const key = `${newNid}-${mid}`;
+            cb.checked = chart.data.datasets.some(ds => ds.key === key);
+        });
+        
+        // Refresh settings for the new node
+        triggerGlobalRefresh();
     };
 
     document.getElementById('saveFlashBtn').onclick = async () => {
@@ -747,28 +759,6 @@
         }
     };
 
-    document.getElementById('nodeCounter').onclick = () => { 
-        const grid = document.getElementById('nodeGrid'); 
-        grid.innerHTML = '';
-        
-        // Filter and sort discovered nodes (ensuring Node 0 is never included)
-        Array.from(foundNodes.keys())
-            .filter(id => id > 0) 
-            .sort((a,b) => a - b)
-            .forEach(id => {
-                const chip = document.createElement('div'); 
-                chip.className = 'node-chip'; 
-                chip.innerText = `ID ${id}`;
-                chip.onclick = () => { 
-                    document.getElementById('nodeIdSelect').value = id; 
-                    updatePreview(); 
-                    closeModals(); 
-                };
-                grid.appendChild(chip);
-            });
-        document.getElementById('nodeModal').style.display = 'flex'; 
-    };
-    
     document.getElementById('progFirmwareBtn').onclick = () => document.getElementById('firmwareModal').style.display = 'flex';
     document.getElementById('sendBtn').onclick = () => sendRaw(updatePreview());
     document.getElementById('refreshRtr').onclick = triggerGlobalRefresh;
@@ -777,6 +767,15 @@
     document.getElementById('timeBaseSelect').onchange = (e) => timeWindowSeconds = parseInt(e.target.value);
     document.getElementById('freezeToggle').onchange = (e) => isFrozen = e.target.checked;
     document.getElementById('nodeCounter').onclick = showNodeSelector;
+    document.getElementById('saveCsvBtn').onclick = () => {
+        if (chart.data.datasets.length === 0) return;
+        let csv = "Time(s),Dataset,Value\n";
+        chart.data.datasets.forEach(ds => ds.data.forEach(p => csv += `${p.x},${ds.label},${p.y}\n`));
+        const blob = new Blob([csv], {type: 'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'telemetry.csv'; a.click();
+    };
+
     ['cmdType', 'cmdValue', 'nodeIdSelect'].forEach(id => document.getElementById(id).oninput = updatePreview);
 
     document.addEventListener('change', (e) => {
