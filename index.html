@@ -189,6 +189,65 @@
     </div>
 </div>
 
+<div id="auxModal" class="modal-overlay">
+    <div class="modal-content" style="width: 520px; text-align: left;">
+        <h3 style="margin: 0 0 15px 0; color: var(--accent-blue); text-align: center;">AUX CONNECTOR CONFIG</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <!-- AUX1 -->
+            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
+                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX1</div>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 0.75em; color: #888;">Function</label>
+                    <select id="aux1Func" style="width: 100%; margin-top: 3px;" onchange="onAuxFuncChange('aux1')">
+                        <option value="0">Disabled</option>
+                        <option value="1">Serial Control</option>
+                        <option value="3">Digital Output</option>
+                        <option value="4">Digital Input</option>
+                        <option value="5">Analog Input</option>
+                        <option value="6">PWM Output</option>
+                    </select>
+                </div>
+                <div id="aux1ValWrap" style="display:none;">
+                    <label style="font-size: 0.75em; color: #888;" id="aux1ValLabel">Value</label>
+                    <div style="margin-top: 3px;" id="aux1ValInput"></div>
+                </div>
+            </div>
+            <!-- AUX2 -->
+            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
+                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX2</div>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 0.75em; color: #888;">Function</label>
+                    <select id="aux2Func" style="width: 100%; margin-top: 3px;" onchange="onAuxFuncChange('aux2')">
+                        <option value="0">Disabled</option>
+                        <option value="1">Serial Control</option>
+                        <option value="3">Digital Output</option>
+                        <option value="4">Digital Input</option>
+                        <option value="5">Analog Input</option>
+                        <option value="6">PWM Output</option>
+                    </select>
+                </div>
+                <div id="aux2ValWrap" style="display:none;">
+                    <label style="font-size: 0.75em; color: #888;" id="aux2ValLabel">Value</label>
+                    <div style="margin-top: 3px;" id="aux2ValInput"></div>
+                </div>
+            </div>
+        </div>
+        <!-- Serial mode notice -->
+        <div id="auxSerialNotice" style="display:none; margin-top: 12px; padding: 8px 12px; background: #1a2a3a; border: 1px solid var(--accent-blue); border-radius: 6px; font-size: 0.75em; color: #7fb3d3;">
+            ⚡ Serial Control uses both pins. AUX1 = TX, AUX2 = RX. Both are locked to this mode.
+        </div>
+        <!-- Payload preview -->
+        <div style="margin-top: 14px;">
+            <label style="font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
+            <div class="preview-box" id="auxPayloadPreview" style="margin-top: 4px; width: 100%; box-sizing: border-box;">-- -- ----------------</div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button class="btn btn-grey" style="flex: 1; justify-content: center;" onclick="closeModals()">Close</button>
+            <button class="btn btn-send" style="flex: 1; justify-content: center;" onclick="sendAuxConfig()">Send</button>
+        </div>
+    </div>
+</div>
+
 <div id="firmwareModal" class="modal-overlay">
     <div class="modal-content" style="text-align: left;">
         <h3 style="margin:0 0 15px 0; color:var(--accent-blue); text-align: center;">UPDATE FIRMWARE</h3>
@@ -328,7 +387,7 @@
         13: ["Closed Loop Type (0/1)", 'Uint16'], 14: ["Standstill Mode", 'Uint16'], 15: ["Map Direction (0/1)", 'Uint8'],
         16: ["Position Speed", 'Float32'], 17: ["Acceleration", 'Float32'], 18: ["Deceleration", 'Float32'],
         19: ["Report Frequency (f1,f2)", 'Special19'], 20: ["Boot Enable (0/1)", 'Uint8'], 21: ["3V3 LED Disable", 'Uint8'],
-        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["AUX Connnector", 'Uint16']
+        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["AUX Connector", 'Special26']
     };
 
     const TELEMETRY_FIELDS = {
@@ -342,6 +401,7 @@
     let foundNodes = new Map();
     const startTime = Date.now(), telemetryWatchdogs = {};
     let timeWindowSeconds = 30;
+    let lastAuxState = { fn1: 0, v1: 0, fn2: 0, v2: 0 };
 
     // --- CHARTING ---
     const ctx = document.getElementById('telemetryChart').getContext('2d');
@@ -572,6 +632,7 @@
     function closeModals() { 
         document.getElementById('nodeModal').style.display = 'none';
         document.getElementById('firmwareModal').style.display = 'none';
+        document.getElementById('auxModal').style.display = 'none';
     }
 
     function constructPayload(mid, valStr) {
@@ -613,6 +674,15 @@
                 displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; val = view.getUint16(0,true); 
             } else if (config[1] === 'Special35') { 
                 displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0); 
+            } else if (config[1] === 'Special26') {
+                const fn1 = view.getUint16(0, true), v1 = view.getUint16(2, true);
+                const fn2 = view.getUint16(4, true), v2 = view.getUint16(6, true);
+                if (nid == document.getElementById('nodeIdSelect').value) {
+                    lastAuxState = { fn1, v1, fn2, v2 };
+                }
+                const fnName = f => ['DIS','SER','RES','DIG','IN','ADC','PWM'][f] || `FN${f}`;
+                displayVal = `A1:${fnName(fn1)}=${v1} | A2:${fnName(fn2)}=${v2}`;
+                val = fn1;
             } else {
                 switch(config[1]) {
                     case 'Float64': val = view.getFloat64(0, true); break;
@@ -655,6 +725,7 @@
             row.addEventListener('dblclick', (e) => {
                 if(e.target.classList.contains('plot-trigger')) return;
                 const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
+                if (mid === '26') { openAuxModal(); return; }
                 if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
                 else requestRtr(mid);
             });
@@ -786,6 +857,143 @@
             chart.update();
         }
     });
+
+    // --- AUX CONNECTOR MODAL ---
+    const AUX_FUNCTIONS = { 0: 'Disabled', 1: 'Serial', 3: 'Digital Out', 4: 'Digital In', 5: 'Analog In', 6: 'PWM Out' };
+
+    function openAuxModal() {
+        // Reset render cache so controls rebuild with current state
+        _auxLastFn.aux1 = null;
+        _auxLastFn.aux2 = null;
+        // Pre-populate dropdowns and values from last known state
+        const s = lastAuxState;
+        document.getElementById('aux1Func').value = s.fn1;
+        document.getElementById('aux2Func').value = s.fn2;
+        document.getElementById('auxModal').style.display = 'flex';
+        // Render value inputs first, then set their values
+        renderAuxValueInput('aux1', s.fn1);
+        renderAuxValueInput('aux2', s.fn2);
+        setAuxValue('aux1', s.fn1, s.v1);
+        setAuxValue('aux2', s.fn2, s.v2);
+        const isSerial = s.fn1 === 1 && s.fn2 === 1;
+        document.getElementById('auxSerialNotice').style.display = isSerial ? 'block' : 'none';
+        updateAuxPreview();
+    }
+
+    // Set the value input(s) for a pin after rendering
+    function setAuxValue(pin, fn, val) {
+        if (fn === 3) { // Digital Output
+            const el = document.getElementById(`${pin}Val`);
+            if (el) el.value = val;
+        } else if (fn === 6) { // PWM Output
+            const num = document.getElementById(`${pin}Val`);
+            const slider = document.getElementById(`${pin}ValSlider`);
+            const pct = document.getElementById(`${pin}ValPct`);
+            if (num) num.value = val;
+            if (slider) slider.value = val;
+            if (pct) pct.innerText = Math.round(val / 4095 * 100) + '%';
+        }
+    }
+
+    function onAuxFuncChange(changedPin) {
+        const fn1 = parseInt(document.getElementById('aux1Func').value);
+        const fn2 = parseInt(document.getElementById('aux2Func').value);
+
+        // If the changed pin is being set away from serial, set the other to disabled
+        if (changedPin === 'aux1' && fn1 !== 1 && fn2 === 1) {
+            document.getElementById('aux2Func').value = 0;
+        } else if (changedPin === 'aux2' && fn2 !== 1 && fn1 === 1) {
+            document.getElementById('aux1Func').value = 0;
+        }
+
+        // If either pin is now set to serial, lock both
+        const newFn1 = parseInt(document.getElementById('aux1Func').value);
+        const newFn2 = parseInt(document.getElementById('aux2Func').value);
+        const isSerial = newFn1 === 1 || newFn2 === 1;
+        if (isSerial) {
+            document.getElementById('aux1Func').value = 1;
+            document.getElementById('aux2Func').value = 1;
+            document.getElementById('auxSerialNotice').style.display = 'block';
+        } else {
+            document.getElementById('auxSerialNotice').style.display = 'none';
+        }
+
+        renderAuxValueInput('aux1', parseInt(document.getElementById('aux1Func').value));
+        renderAuxValueInput('aux2', parseInt(document.getElementById('aux2Func').value));
+        updateAuxPreview();
+    }
+
+    const _auxLastFn = { aux1: null, aux2: null };
+
+    function renderAuxValueInput(pin, fn) {
+        // Only rebuild the controls if the function type has actually changed
+        if (_auxLastFn[pin] === fn) return;
+        _auxLastFn[pin] = fn;
+
+        const wrap = document.getElementById(`${pin}ValWrap`);
+        const label = document.getElementById(`${pin}ValLabel`);
+        const container = document.getElementById(`${pin}ValInput`);
+
+        if (fn === 3) { // Digital Output
+            wrap.style.display = 'block';
+            label.innerText = 'Output State';
+            container.innerHTML = `
+                <select id="${pin}Val" style="width:100%" onchange="updateAuxPreview()">
+                    <option value="0">LOW (0)</option>
+                    <option value="1">HIGH (1)</option>
+                </select>`;
+        } else if (fn === 6) { // PWM Output
+            wrap.style.display = 'block';
+            label.innerText = 'Duty Cycle (0–4095)';
+            container.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <input type="range" id="${pin}ValSlider" min="0" max="4095" value="0" style="width:100%; box-sizing:border-box;"
+                        oninput="document.getElementById('${pin}Val').value=this.value; document.getElementById('${pin}ValPct').innerText=Math.round(this.value/4095*100)+'%'; updateAuxPreview()">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input type="number" id="${pin}Val" min="0" max="4095" value="0" style="flex:1; min-width:0;"
+                            oninput="document.getElementById('${pin}ValSlider').value=this.value; document.getElementById('${pin}ValPct').innerText=Math.round(this.value/4095*100)+'%'; updateAuxPreview()">
+                        <span id="${pin}ValPct" style="color:#888; font-size:0.8em; width:35px; text-align:right;">0%</span>
+                    </div>
+                </div>`;
+        } else {
+            wrap.style.display = 'none';
+            container.innerHTML = '';
+        }
+    }
+
+    function getAuxValue(pin) {
+        const el = document.getElementById(`${pin}Val`);
+        return el ? parseInt(el.value) || 0 : 0;
+    }
+
+    function buildAuxPayload() {
+        const fn1 = parseInt(document.getElementById('aux1Func').value);
+        const fn2 = parseInt(document.getElementById('aux2Func').value);
+        const v1 = getAuxValue('aux1');
+        const v2 = getAuxValue('aux2');
+        const buf = new ArrayBuffer(8), view = new DataView(buf);
+        view.setUint16(0, fn1, true);
+        view.setUint16(2, v1,  true);
+        view.setUint16(4, fn2, true);
+        view.setUint16(6, v2,  true);
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+
+    function updateAuxPreview() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        const canId = (parseInt(nid) << 6) | 26;
+        const payload = buildAuxPayload();
+        document.getElementById('auxPayloadPreview').innerText =
+            `${canId.toString(16).toUpperCase().padStart(2,'0')} 0 ${payload}`;
+    }
+
+    async function sendAuxConfig() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        const canId = (parseInt(nid) << 6) | 26;
+        const payload = buildAuxPayload();
+        await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 ${payload}`);
+        setTimeout(triggerGlobalRefresh, 100);
+    }
 
     initUI();
 </script>
