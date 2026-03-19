@@ -117,6 +117,7 @@
         .btn { background-color: var(--accent-blue); color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s, box-shadow 0.2s; font-size: 0.85em; display: flex; align-items: center; gap: 8px; }
         .btn-send { background-color: #e67e22; }
         .btn-disconnect { background-color: var(--accent-red) !important; box-shadow: none !important; animation: none !important; }
+        .btn-disconnect:disabled { opacity: 0.35; filter: grayscale(60%); cursor: not-allowed; }
         
         .btn-refresh-small { 
             background-color: #444; 
@@ -166,6 +167,7 @@
         .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 6px; border: 1px solid #444; }
 
         #progFirmwareBtn { height: 32px; padding: 0 15px; font-size: 0.75em; display: flex; align-items: center; }
+        @keyframes fwSpin { to { transform: rotate(360deg); } }
 
         a { color: var(--accent-blue); text-decoration: none; }
         a:hover { text-decoration: underline; }
@@ -248,18 +250,94 @@
     </div>
 </div>
 
+<div id="fwWarningModal" class="modal-overlay">
+    <div class="modal-content" style="width:380px; text-align:center;">
+        <div style="font-size:2em; margin-bottom:12px;">⚠️</div>
+        <h3 style="margin:0 0 10px 0; color:var(--accent-orange); text-transform:uppercase; letter-spacing:0.1em; font-size:0.95em;">Disconnect First</h3>
+        <p style="font-size:0.85em; color:#ccc; line-height:1.6; margin-bottom:20px;">
+            You are currently connected to the board via the GUI.<br><br>
+            Click <strong style="color:white;">Disconnect</strong> in the header bar first, then open Update Firmware.
+        </p>
+        <button class="btn btn-grey" style="width:100%; justify-content:center;" onclick="document.getElementById('fwWarningModal').style.display='none'">OK</button>
+    </div>
+</div>
+
 <div id="firmwareModal" class="modal-overlay">
-    <div class="modal-content" style="text-align: left;">
-        <h3 style="margin:0 0 15px 0; color:var(--accent-blue); text-align: center;">UPDATE FIRMWARE</h3>
-        <p style="font-size: 0.9em; line-height: 1.5; color: #ccc;">
-            Flashing firmware directly from the CANBUS GUI is not implemented yet. However you can still flash online using 
-            <a href="https://espressif.github.io/esptool-js/" target="_blank">ESP Tool</a> 
-            (<b>disconnect from the GUI first</b>).
-        </p>
-        <p style="font-size: 0.9em; line-height: 1.5; color: #ccc;">
-            Download the latest <b>.bin</b> from the GitHub and set the flash address to <b>0x0000</b>.
-        </p>
-        <button class="btn btn-grey" style="width:100%; margin-top: 15px; justify-content: center;" onclick="closeModals()">Close</button>
+    <div class="modal-content" style="text-align:left; width:520px; max-width:96vw; padding:20px;">
+
+        <h3 style="margin:0 0 16px 0; color:var(--accent-blue); text-align:center; text-transform:uppercase; letter-spacing:0.1em; font-size:1em;">Update Firmware</h3>
+
+        <!-- STEP 1: Connect -->
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:10px; overflow:hidden;">
+            <div class="scroll-header" style="height:38px; padding:0 12px;">
+                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">01</span>
+                <span class="header-main" style="font-size:0.75em;">Connect to Device</span>
+            </div>
+            <div style="padding:12px 14px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <div id="fwDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-red);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></div>
+                    <span id="fwStatusText" style="font-family:monospace; font-size:0.78em; color:#666;">Disconnected</span>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="fwConnectBtn" class="btn" style="font-size:0.78em; padding:6px 14px;">🔗 Connect</button>
+                    <button id="fwDisconnectBtn" class="btn btn-disconnect" style="font-size:0.78em; padding:6px 14px; display:none;">✕ Disconnect</button>
+                </div>
+                <div id="fwChipRow" style="display:none; margin-top:10px; flex-wrap:wrap; gap:5px;">
+                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">CHIP: <span id="fwChipName" style="color:var(--accent-blue);">—</span></div>
+                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">MAC: <span id="fwChipMac" style="color:var(--accent-blue);">—</span></div>
+                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">FLASH: <span id="fwChipFlash" style="color:var(--accent-blue);">—</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: File -->
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:10px; overflow:hidden;">
+            <div class="scroll-header" style="height:38px; padding:0 12px;">
+                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">02</span>
+                <span class="header-main" style="font-size:0.75em;">Firmware Binary</span>
+            </div>
+            <div style="padding:12px 14px;">
+                <div id="fwDropzone" style="border:1px dashed var(--border); border-radius:4px; padding:18px; text-align:center; cursor:pointer; background:var(--bg-color); position:relative; transition:border-color 0.2s, background 0.2s;">
+                    <input type="file" id="fwFileInput" accept=".bin" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+                    <div style="font-size:1.5em; margin-bottom:4px; opacity:0.3; pointer-events:none;">📂</div>
+                    <div style="font-size:0.78em; color:#555; pointer-events:none;">Drop <strong style="color:var(--accent-blue);">.bin</strong> file here or click to browse</div>
+                </div>
+                <div id="fwFileInfo" style="display:none; margin-top:8px; background:rgba(52,152,219,0.06); border:1px solid rgba(52,152,219,0.18); border-radius:3px; padding:6px 10px; font-family:monospace; font-size:0.75em; color:var(--accent-blue); align-items:center; gap:8px;">
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="fwFileName">—</span>
+                    <span style="color:#555;flex-shrink:0;" id="fwFileSize">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Flash -->
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:12px; overflow:hidden;">
+            <div class="scroll-header" style="height:38px; padding:0 12px;">
+                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">03</span>
+                <span class="header-main" style="font-size:0.75em;">Flash</span>
+            </div>
+            <div style="padding:12px 14px;">
+                <div style="display:flex; justify-content:center;"><button id="fwFlashBtn" class="btn" style="font-size:0.82em; padding:7px 28px; background:rgba(46,204,113,0.1)!important; border:1px solid rgba(46,204,113,0.35)!important; color:var(--accent-green)!important; box-shadow:none!important;" disabled>⚡ Flash Device</button></div>
+                <div id="fwProgressWrap" style="display:none; margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-family:monospace; font-size:0.7em; color:#555; margin-bottom:4px;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <svg id="fwSpinner" viewBox="0 0 24 24" style="display:none; width:11px; height:11px; animation:fwSpin 0.8s linear infinite; flex-shrink:0;"><circle cx="12" cy="12" r="9" fill="none" stroke="#3498db" stroke-width="3" stroke-dasharray="40 20"/></svg>
+                            <span id="fwProgLabel">Writing...</span>
+                        </div>
+                        <span id="fwProgPct">0%</span>
+                    </div>
+                    <div style="height:5px; background:#111; border:1px solid var(--border); border-radius:99px; overflow:hidden;">
+                        <div id="fwProgBar" style="height:100%; width:0%; background:linear-gradient(90deg,var(--accent-blue),var(--accent-green)); border-radius:99px; transition:width 0.2s;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div id="fwLog" style="background:#0a0a0a; border:1px solid var(--border); border-radius:4px; padding:8px 10px; font-family:monospace; font-size:0.72em; height:110px; overflow-y:auto; color:#3a5a6a; margin-bottom:12px; line-height:1.7; scrollbar-width:thin; scrollbar-color:#333 transparent; display:flex; flex-direction:column; gap:0;"></div>
+
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-grey" id="fwCloseBtn" style="flex:1; justify-content:center; font-size:0.82em;">Close</button>
+        </div>
     </div>
 </div>
 
@@ -663,9 +741,11 @@
         const parts = line.split(" "); 
         if (parts.length < 3) return;
         const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
-        if (nid > 0) { foundNodes.set(nid, Date.now()); refreshSystemStatus(); }
         const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
-        if (!config) return;
+        if (!config) return;  // ignore unknown message IDs entirely
+        // Only register a node as discovered from known telemetry frames (unsolicited broadcasts)
+        // This prevents spurious node detection from unexpected CAN IDs at startup
+        if (nid > 0 && TELEMETRY_FIELDS[mid]) { foundNodes.set(nid, Date.now()); refreshSystemStatus(); }
         try {
             const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
             const view = new DataView(bytes.buffer);
@@ -790,14 +870,39 @@
     }
 
     // --- BUTTON BINDINGS ---
+
+    // GUI read loop
+    async function guiReadLoop() {
+        let buffer = "";
+        while (keepReading) {
+            try {
+                reader = port.readable.getReader();
+                while (keepReading) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += new TextDecoder().decode(value);
+                    let lines = buffer.split("\n");
+                    buffer = lines.pop();
+                    lines.forEach(l => parseLine(l.trim()));
+                }
+            } catch(e) {}
+            finally {
+                try { reader.releaseLock(); } catch(_) {}
+                reader = null;
+            }
+        }
+    }
+
     document.getElementById('connectBtn').onclick = async () => {
-        if (port) { location.reload(); return; }
+        if (port) { window.guiConnected = false; location.reload(); return; }
         try {
-            port = await navigator.serial.requestPort(); await port.open({ baudRate: 115200 });
-            keepReading = true; refreshSystemStatus(); setTimeout(triggerGlobalRefresh, 500);
-            const textDecoder = new TextDecoderStream(); port.readable.pipeTo(textDecoder.writable);
-            reader = textDecoder.readable.getReader(); let buffer = "";
-            while (keepReading) { const { value, done } = await reader.read(); if (done) break; buffer += value; let lines = buffer.split("\n"); buffer = lines.pop(); lines.forEach(l => parseLine(l.trim())); }
+            port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 115200 });
+            keepReading = true;
+            window.guiConnected = true;
+            refreshSystemStatus();
+            setTimeout(triggerGlobalRefresh, 500);
+            guiReadLoop();
         } catch(e) {}
     };
 
@@ -830,7 +935,6 @@
         }
     };
 
-    document.getElementById('progFirmwareBtn').onclick = () => document.getElementById('firmwareModal').style.display = 'flex';
     document.getElementById('sendBtn').onclick = () => sendRaw(updatePreview());
     document.getElementById('refreshRtr').onclick = triggerGlobalRefresh;
     document.getElementById('clearChartBtn').onclick = () => { chart.data.datasets.forEach(d => d.data = []); chart.update(); };
@@ -996,6 +1100,251 @@
     }
 
     initUI();
+</script>
+
+<script type="module">
+// ── esptool-js firmware flasher ──────────────────────────────────────────
+// Simple model: fresh requestPort() each time. No port sharing complexity.
+import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@0.5.7/bundle.js';
+
+const fwDot           = document.getElementById('fwDot');
+const fwStatusText    = document.getElementById('fwStatusText');
+const fwConnectBtn    = document.getElementById('fwConnectBtn');
+const fwDisconnectBtn = document.getElementById('fwDisconnectBtn');
+const fwFlashBtn      = document.getElementById('fwFlashBtn');
+const fwFileInput     = document.getElementById('fwFileInput');
+const fwDropzone      = document.getElementById('fwDropzone');
+const fwFileInfo      = document.getElementById('fwFileInfo');
+const fwFileName      = document.getElementById('fwFileName');
+const fwFileSize      = document.getElementById('fwFileSize');
+const fwChipRow       = document.getElementById('fwChipRow');
+const fwLog           = document.getElementById('fwLog');
+const fwProgWrap      = document.getElementById('fwProgressWrap');
+const fwProgBar       = document.getElementById('fwProgBar');
+const fwProgPct       = document.getElementById('fwProgPct');
+const fwProgLabel     = document.getElementById('fwProgLabel');
+const fwSpinner       = document.getElementById('fwSpinner');
+
+let fwTransport  = null;
+let fwEspLoader  = null;
+let fwFile       = null;
+let fwTermLines  = [];
+
+// ── helpers ──────────────────────────────────────────────────────────────
+function fwFmt(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1048576).toFixed(2) + ' MB';
+}
+function fwNow() { return new Date().toTimeString().slice(0,8); }
+function fwAppendLog(msg, cls) {
+    const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const color = {ok:'#2ecc71', err:'#a93226', warn:'#e67e22', data:'#3498db'}[cls] || '#3a5a6a';
+    const line = document.createElement('div');
+    line.innerHTML = `<span style="color:#2a3a48;">[${fwNow()}]</span> <span style="color:${color};">${safe}</span>`;
+    fwLog.appendChild(line);
+    fwLog.scrollTop = fwLog.scrollHeight;
+}
+function fwSetStatus(state, text) {
+    const colors  = {connected:'#2ecc71', connecting:'#e67e22', error:'#a93226', off:'#a93226'};
+    const shadows = {connected:'0 0 7px #2ecc71', connecting:'0 0 7px #e67e22'};
+    fwDot.style.background = colors[state] || '#555';
+    fwDot.style.boxShadow  = shadows[state] || 'none';
+    fwStatusText.style.color = colors[state] || '#666';
+    fwStatusText.textContent = text;
+}
+function fwSetProgress(pct, label) {
+    fwProgWrap.style.display = 'block';
+    fwProgBar.style.width    = pct + '%';
+    fwProgPct.textContent    = Math.round(pct) + '%';
+    if (label) fwProgLabel.textContent = label;
+}
+function fwCheckReady() {
+    fwFlashBtn.disabled = !(fwEspLoader && fwFile);
+}
+function fwResetUI() {
+    fwLog.innerHTML = '';
+    fwProgWrap.style.display = 'none';
+    fwProgBar.style.width    = '0%';
+    fwProgBar.style.background = 'linear-gradient(90deg,var(--accent-blue),var(--accent-green))';
+    fwSpinner.style.display  = 'none';
+    fwChipRow.style.display  = 'none';
+    fwConnectBtn.style.display    = 'flex';
+    fwDisconnectBtn.style.display = 'none';
+    fwFlashBtn.disabled           = true;
+    document.getElementById('fwCloseBtn').textContent = 'Close';
+    document.getElementById('fwCloseBtn').textContent = 'Close';
+    fwFileInfo.style.display = 'none';
+    fwFile = null; fwTransport = null; fwEspLoader = null; fwTermLines = [];
+    fwSetStatus('off', 'Disconnected');
+}
+
+// ── file handling ─────────────────────────────────────────────────────────
+function fwHandleFile(file) {
+    if (!file) return;
+    if (!file.name.endsWith('.bin')) { fwAppendLog('Select a valid .bin file.', 'err'); return; }
+    fwFile = file;
+    fwFileName.textContent = file.name;
+    fwFileSize.textContent = fwFmt(file.size);
+    fwFileInfo.style.display = 'flex';
+    fwAppendLog('Loaded: ' + file.name + ' (' + fwFmt(file.size) + ')', 'ok');
+    fwCheckReady();
+}
+fwFileInput.addEventListener('change', e => fwHandleFile(e.target.files[0]));
+fwDropzone.addEventListener('dragover',  e => { e.preventDefault(); fwDropzone.style.borderColor='#3498db'; fwDropzone.style.background='rgba(52,152,219,0.05)'; });
+fwDropzone.addEventListener('dragleave', ()  => { fwDropzone.style.borderColor=''; fwDropzone.style.background=''; });
+fwDropzone.addEventListener('drop', e => {
+    e.preventDefault(); fwDropzone.style.borderColor=''; fwDropzone.style.background='';
+    fwHandleFile(e.dataTransfer.files[0]);
+});
+
+// ── connect — fresh requestPort() every time ──────────────────────────────
+fwConnectBtn.addEventListener('click', async () => {
+    fwLog.innerHTML = '';
+    fwTermLines = [];
+    fwSetStatus('connecting', 'Waiting for port selection...');
+    try {
+        const rawPort = await navigator.serial.requestPort();
+        fwTransport = new Transport(rawPort, true);
+        fwSetStatus('connecting', 'Connecting...');
+        fwAppendLog('Connecting to device...', 'data');
+
+        const terminal = {
+            clean() { fwTermLines = []; },
+            writeLine(s) { fwTermLines.push(s); fwAppendLog(s, 'data'); },
+            write(s)     { if (s && s.trim()) { fwTermLines.push(s.trim()); fwAppendLog(s.trim(), 'data'); } },
+        };
+
+        fwEspLoader = new ESPLoader({ transport: fwTransport, baudrate: 921600, terminal, enableTracing: false, debugLogging: false });
+        await fwEspLoader.main();
+
+        const chipLine  = fwTermLines.find(l => /^Chip is /i.test(l));
+        const macLine   = fwTermLines.find(l => /^MAC:/i.test(l));
+        const flashLine = fwTermLines.find(l => /embedded flash/i.test(l) || /flash \d/i.test(l));
+
+        document.getElementById('fwChipName').textContent  = chipLine  ? chipLine.replace(/^Chip is /i,'').trim()  : (fwEspLoader.chip?.CHIP_NAME ?? '—');
+        document.getElementById('fwChipMac').textContent   = macLine   ? macLine.replace(/^MAC:\s*/i,'').trim()    : '—';
+        document.getElementById('fwChipFlash').textContent = flashLine ? flashLine.trim() : '—';
+        fwChipRow.style.display = 'flex';
+
+        fwSetStatus('connected', 'Connected');
+        fwAppendLog('Ready to flash.', 'ok');
+        fwConnectBtn.style.display    = 'none';
+        fwDisconnectBtn.style.display = 'flex';
+        document.getElementById('fwCloseBtn').textContent = 'Disconnect & Close';
+        fwCheckReady();
+
+    } catch(err) {
+        fwSetStatus('error', 'Connection failed');
+        fwAppendLog('Error: ' + err.message, 'err');
+        if (fwTransport) { try { await fwTransport.disconnect(); } catch(_) {} }
+        fwTransport = null; fwEspLoader = null;
+        fwConnectBtn.style.display    = 'flex';
+        fwDisconnectBtn.style.display = 'none';
+        fwCheckReady();
+    }
+});
+
+// ── disconnect ────────────────────────────────────────────────────────────
+fwDisconnectBtn.addEventListener('click', async () => {
+    if (fwTransport) { try { await fwTransport.disconnect(); } catch(_) {} }
+    fwTransport = null; fwEspLoader = null;
+    fwSetStatus('off', 'Disconnected');
+    fwChipRow.style.display  = 'none';
+    fwConnectBtn.style.display    = 'flex';
+    fwDisconnectBtn.style.display = 'none';
+    fwFlashBtn.disabled           = true;
+    document.getElementById('fwCloseBtn').textContent = 'Close';
+    fwAppendLog('Disconnected.', 'warn');
+});
+
+// ── flash ─────────────────────────────────────────────────────────────────
+fwFlashBtn.addEventListener('click', async () => {
+    if (!fwEspLoader || !fwFile) return;
+
+    fwFlashBtn.disabled      = true;
+    fwDisconnectBtn.disabled = true;
+
+    // Show spinner from the very start of flashing
+    fwSpinner.style.display = 'block';
+    fwSetProgress(0, 'Erasing & writing...');
+    fwAppendLog('Flashing ' + fwFmt(fwFile.size) + ' to 0x0...', 'data');
+
+    try {
+        const uint8      = new Uint8Array(await fwFile.arrayBuffer());
+        const binaryStr  = fwEspLoader.ui8ToBstr(uint8);
+
+        await fwEspLoader.writeFlash({
+            fileArray: [{ data: binaryStr, address: 0x0 }],
+            flashSize: 'keep',
+            eraseAll:  false,
+            compress:  true,
+            reportProgress(_i, written, total) {
+                fwSetProgress((written/total)*100, 'Writing... ' + fwFmt(written) + ' / ' + fwFmt(total));
+            },
+            calculateMD5Hash(_img) { return ''; },
+        });
+
+        // Still spinning — verifying + resetting
+        fwProgPct.textContent    = '100%';
+        fwProgLabel.textContent  = 'Verifying & resetting...';
+        fwAppendLog('Verifying and resetting...', 'ok');
+        fwSetStatus('connected', 'Verifying...');
+        try { await fwEspLoader.after('hard_reset'); } catch(_) {}
+        // ESP32-S3 USB-JTAG often doesn't exit bootloader via RTS toggle.
+        // Apply the "1200 baud touch" reset: open at 1200, set RTS low, close.
+        // This reliably exits bootloader on USB-JTAG devices.
+        try {
+            const resetPort = fwTransport.device;
+            await fwTransport.disconnect();           // close esptool's port
+            await new Promise(r => setTimeout(r, 100));
+            await resetPort.open({ baudRate: 1200 }); // magic baud touch
+            await resetPort.setSignals({ requestToSend: false, dataTerminalReady: false });
+            await new Promise(r => setTimeout(r, 200));
+            await resetPort.close();
+        } catch(_) {}
+
+        // Done — stop spinner, turn bar green
+        fwSpinner.style.display    = 'none';
+        fwProgBar.style.background = 'var(--accent-green)';
+        fwProgBar.style.width      = '100%';
+        fwProgPct.textContent      = '✓';
+        fwProgLabel.textContent    = 'Done!';
+        fwSetStatus('connected', 'Flash complete');
+        fwAppendLog('Flash successful! Disconnect and reconnect the GUI serial.', 'ok');
+
+    } catch(err) {
+        fwSpinner.style.display = 'none';
+        fwAppendLog('Flash error: ' + err.message, 'err');
+        fwSetStatus('error', 'Flash failed');
+    } finally {
+        fwFlashBtn.disabled      = false;
+        fwDisconnectBtn.disabled = false;
+    }
+});
+
+// ── close button — disconnect esptool then reload GUI serial ──────────────
+document.getElementById('fwCloseBtn').addEventListener('click', async () => {
+    if (fwTransport) {
+        try { await fwTransport.disconnect(); } catch(_) {}
+        fwTransport = null; fwEspLoader = null;
+    }
+    document.getElementById('firmwareModal').style.display = 'none';
+    fwResetUI();
+});
+
+// ── modal open ────────────────────────────────────────────────────────────
+document.getElementById('progFirmwareBtn').addEventListener('click', () => {
+    if (window.guiConnected) {
+        document.getElementById('fwWarningModal').style.display = 'flex';
+        return;
+    }
+    fwResetUI();
+    fwAppendLog('Select your device port and a .bin file to flash.', 'data');
+    fwAppendLog('Hold BOOT button on connect if auto-reset fails.', 'warn');
+    document.getElementById('firmwareModal').style.display = 'flex';
+});
+document.getElementById('progFirmwareBtn').removeAttribute('onclick');
 </script>
 </body>
 </html>
