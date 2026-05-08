@@ -171,11 +171,31 @@
 
         a { color: var(--accent-blue); text-decoration: none; }
         a:hover { text-decoration: underline; }
+
+        /* --- DISCONNECT TOAST --- */
+        #disconnectToast {
+            position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #2a1a1a; border: 1px solid var(--accent-red); border-radius: 8px;
+            padding: 12px 20px; display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(169,50,38,0.3);
+            z-index: 3000; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            white-space: nowrap;
+        }
+        #disconnectToast.show {
+            opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
+        }
+        #disconnectToast .toast-icon { font-size: 1.1em; }
+        #disconnectToast .toast-text { font-size: 0.82em; color: #e0a0a0; }
+        #disconnectToast .toast-text strong { color: #fff; }
     </style>
 </head>
 <body>
 
 <div id="connectionOverlay"></div>
+<div id="disconnectToast">
+    <span class="toast-text"><strong>Board Disconnected</strong> - USB connection lost</span>
+</div>
 
 <nav id="sidebar">
     <div class="sidebar-item active" onclick="switchView('dashboard', this)"><span>📊</span> Dashboard</div>
@@ -871,6 +891,25 @@
 
     // --- BUTTON BINDINGS ---
 
+    // Clean disconnect — call this on both manual disconnect and USB unplug
+    function showDisconnectToast() {
+        const toast = document.getElementById('disconnectToast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    async function handleDisconnect(reason, silent) {
+        if (!keepReading && !port) return; // already disconnected
+        keepReading = false;
+        window.guiConnected = false;
+        foundNodes.clear();
+        if (reader) { try { await reader.cancel(); } catch(_) {} reader = null; }
+        if (port) { try { await port.close(); } catch(_) {} port = null; }
+        refreshSystemStatus();
+        if (!silent) showDisconnectToast();
+        console.warn('Serial disconnected:', reason);
+    }
+
     // GUI read loop
     async function guiReadLoop() {
         let buffer = "";
@@ -879,22 +918,38 @@
                 reader = port.readable.getReader();
                 while (keepReading) {
                     const { value, done } = await reader.read();
-                    if (done) break;
+                    if (done) {
+                        // Stream closed — port was unplugged
+                        handleDisconnect('stream closed');
+                        return;
+                    }
                     buffer += new TextDecoder().decode(value);
                     let lines = buffer.split("\n");
                     buffer = lines.pop();
                     lines.forEach(l => parseLine(l.trim()));
                 }
-            } catch(e) {}
-            finally {
+            } catch(e) {
+                // NetworkError / device lost — USB was unplugged mid-read
+                if (keepReading) {
+                    handleDisconnect('read error: ' + e.message);
+                    return;
+                }
+            } finally {
                 try { reader.releaseLock(); } catch(_) {}
                 reader = null;
             }
         }
     }
 
+    // Web Serial hardware disconnect event — fires when USB cable is pulled
+    navigator.serial.addEventListener('disconnect', (e) => {
+        if (port && e.target === port) {
+            handleDisconnect('USB unplugged');
+        }
+    });
+
     document.getElementById('connectBtn').onclick = async () => {
-        if (port) { window.guiConnected = false; location.reload(); return; }
+        if (port) { handleDisconnect('manual disconnect', true); return; }
         try {
             port = await navigator.serial.requestPort();
             await port.open({ baudRate: 115200 });
