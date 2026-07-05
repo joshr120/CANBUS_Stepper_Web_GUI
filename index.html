@@ -197,7 +197,7 @@
 
 <div id="connectionOverlay"></div>
 <div id="disconnectToast">
-    <span class="toast-text"><strong>Board Disconnected</strong> - USB connection lost</span>
+    <span class="toast-text" id="toastText"><strong>Board Disconnected</strong> - USB connection lost</span>
 </div>
 
 <nav id="sidebar">
@@ -269,6 +269,33 @@
         <div style="display: flex; gap: 10px; margin-top: 15px;">
             <button class="btn btn-grey" style="flex: 1; justify-content: center;" onclick="closeModals()">Close</button>
             <button class="btn btn-send" style="flex: 1; justify-content: center;" onclick="sendAuxConfig()">Send</button>
+        </div>
+    </div>
+</div>
+
+<div id="ledModal" class="modal-overlay">
+    <div class="modal-content" style="width: 380px; text-align: left;">
+        <h3 style="margin: 0 0 15px 0; color: var(--accent-blue); text-align: center;">LED STATE CONFIG</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <!-- LED1 -->
+            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 1</div>
+                <button id="led1Toggle" class="btn" style="width: 100%; justify-content: center;" onclick="toggleLedState(1)">OFF</button>
+            </div>
+            <!-- LED2 -->
+            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 2</div>
+                <button id="led2Toggle" class="btn" style="width: 100%; justify-content: center;" onclick="toggleLedState(2)">OFF</button>
+            </div>
+        </div>
+        <!-- Payload preview -->
+        <div style="margin-top: 14px;">
+            <label style="font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
+            <div class="preview-box" id="ledPayloadPreview" style="margin-top: 4px; width: 100%; box-sizing: border-box;">-- -- ----------------</div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button class="btn btn-grey" style="flex: 1; justify-content: center;" onclick="closeModals()">Close</button>
+            <button class="btn btn-send" style="flex: 1; justify-content: center;" onclick="sendLedConfig()">Send</button>
         </div>
     </div>
 </div>
@@ -483,7 +510,7 @@
     const CAN_FORMATS = {
         0:  ["NOP", null], 1: ["Set Position (deg)", 'Float64'], 2: ["Set Position (steps)", 'BigInt64'],
         3:  ["Set Velocity (deg/s)", 'Float32'], 4: ["Set Current (%)", 'Uint16'], 5: ["Enable (0/1)", 'Uint8'],
-        6:  ["Emergency Stop", null], 7: ["Stallguard Behaviour", 'Uint16'], 8: ["Zero Enc at Boot", 'Uint8'], 9: ["LED 1 State", 'Uint8'],
+        6:  ["Emergency Stop", null], 7: ["Stallguard Behaviour", 'Uint16'], 8: ["Zero Enc at Boot", 'Uint8'], 9: ["LED States (1,2)", 'Special9'],
         10: ["Steps per Rev", 'Uint16'], 11: ["Microsteps", 'Uint16'], 12: ["Stallguard Threshold", 'Int16'],
         13: ["Closed Loop Type (0/1)", 'Uint16'], 14: ["Standstill Mode", 'Uint16'], 15: ["Map Direction (0/1)", 'Uint8'],
         16: ["Position Speed", 'Float32'], 17: ["Acceleration", 'Float32'], 18: ["Deceleration", 'Float32'],
@@ -500,9 +527,11 @@
 
     let port, reader, keepReading = false, isFrozen = false;
     let foundNodes = new Map();
+    let pendingAutoSelect = false, autoSelectTimer = null;
     const startTime = Date.now(), telemetryWatchdogs = {};
     let timeWindowSeconds = 30;
     let lastAuxState = { fn1: 0, v1: 0, fn2: 0, v2: 0 };
+    let lastLedState = { led1: 0, led2: 0 };
 
     // --- CHARTING ---
     const ctx = document.getElementById('telemetryChart').getContext('2d');
@@ -734,6 +763,7 @@
         document.getElementById('nodeModal').style.display = 'none';
         document.getElementById('firmwareModal').style.display = 'none';
         document.getElementById('auxModal').style.display = 'none';
+        document.getElementById('ledModal').style.display = 'none';
     }
 
     function constructPayload(mid, valStr) {
@@ -744,6 +774,9 @@
             if (type === 'Special19') {
                 const parts = valStr.toString().replace(/[()]/g, '').split(',').map(p => parseInt(p.trim()) || 0);
                 view.setUint16(0, parts[0], true); view.setUint16(2, parts[1], true);
+            } else if (type === 'Special9') {
+                const parts = valStr.toString().replace(/[()]/g, '').split(',').map(p => (parseInt(p.trim()) || 0) ? 1 : 0);
+                view.setUint8(0, parts[0] || 0); view.setUint8(1, parts[1] || 0);
             } else {
                 const val = parseFloat(valStr) || 0;
                 if (type === 'Float64') view.setFloat64(0, val, true);
@@ -768,13 +801,28 @@
         if (!config) return;  // ignore unknown message IDs entirely
         // Only register a node as discovered from known telemetry frames (unsolicited broadcasts)
         // This prevents spurious node detection from unexpected CAN IDs at startup
-        if (nid > 0 && TELEMETRY_FIELDS[mid]) { foundNodes.set(nid, Date.now()); refreshSystemStatus(); }
+        if (nid > 0 && TELEMETRY_FIELDS[mid]) {
+            const isNewNode = !foundNodes.has(nid);
+            foundNodes.set(nid, Date.now());
+            refreshSystemStatus();
+            // Only (re)start the debounce on a genuinely new node ID -- otherwise a node's
+            // own continuous periodic telemetry (e.g. angle at 10Hz) keeps resetting the
+            // timer forever and the auto-select never gets a chance to fire.
+            if (pendingAutoSelect && isNewNode) scheduleAutoSelect();
+        }
         try {
             const bytes = new Uint8Array(parts[2].match(/.{1,2}/g).map(b => parseInt(b, 16)));
             const view = new DataView(bytes.buffer);
             let val = 0, displayVal = "---";
             if (config[1] === 'Special19') { 
                 displayVal = `(${view.getUint16(0,true)}, ${view.getUint16(2,true)})`; val = view.getUint16(0,true); 
+            } else if (config[1] === 'Special9') {
+                const led1 = view.getUint8(0) ? 1 : 0, led2 = view.getUint8(1) ? 1 : 0;
+                if (nid == document.getElementById('nodeIdSelect').value) {
+                    lastLedState = { led1, led2 };
+                }
+                displayVal = `1:${led1 ? 'ON' : 'OFF'} | 2:${led2 ? 'ON' : 'OFF'}`;
+                val = led1;
             } else if (config[1] === 'Special35') { 
                 displayVal = `S1:${view.getUint8(0)}|S2:${view.getUint8(1)}`; val = view.getUint8(0); 
             } else if (config[1] === 'Special26') {
@@ -782,6 +830,11 @@
                 const fn2 = view.getUint16(4, true), v2 = view.getUint16(6, true);
                 if (nid == document.getElementById('nodeIdSelect').value) {
                     lastAuxState = { fn1, v1, fn2, v2 };
+                    // If the AUX modal is open, refresh its live readouts (Digital/Analog Input) in place
+                    if (document.getElementById('auxModal').style.display === 'flex') {
+                        setAuxValue('aux1', fn1, v1);
+                        setAuxValue('aux2', fn2, v2);
+                    }
                 }
                 const fnName = f => ['DIS','SER','RES','DIG','IN','ADC','PWM'][f] || `FN${f}`;
                 displayVal = `A1:${fnName(fn1)}=${v1} | A2:${fnName(fn2)}=${v2}`;
@@ -817,7 +870,11 @@
         const cfg = document.getElementById('config-list'), tel = document.getElementById('telemetry-list'), cmd = document.getElementById('cmdType');
         cfg.innerHTML = ''; tel.innerHTML = ''; cmd.innerHTML = '';
         Object.entries(CAN_FORMATS).forEach(([id, info]) => {
-            cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
+            if (id === '6') {
+                cfg.innerHTML += `<div class="data-row" data-mid="6" data-type="config"><span class="data-label">[6] ${info[0]}</span><button class="btn btn-grey" style="padding: 4px 16px; font-size: 0.78em;" onclick="event.stopPropagation(); sendEStop();">STOP</button></div>`;
+            } else {
+                cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
+            }
             cmd.innerHTML += `<option value="${id}">${id}: ${info[0]}</option>`;
         });
         cmd.selectedIndex = 1;
@@ -828,7 +885,9 @@
             row.addEventListener('dblclick', (e) => {
                 if(e.target.classList.contains('plot-trigger')) return;
                 const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
+                if (mid === '6') return; // STOP is a single-click button, not a double-click edit
                 if (mid === '26') { openAuxModal(); return; }
+                if (mid === '9') { openLedModal(); return; }
                 if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
                 else requestRtr(mid);
             });
@@ -839,8 +898,10 @@
     const EDIT_HINTS = {
         7:  { title: "Stallguard Behaviour", options: ["0 = Do Nothing", "1 = Stop", "2 = Stop + Set Zero", "3 = Stop ONCE", "4 = Stop + Set Zero ONCE"] },
         8:  { title: "Zero Encoder at Boot", options: ["0 = Disabled", "1 = Enabled"] },
+        11: { title: "Microsteps", options: ["Valid TMC2209 values:", "1, 2, 4, 8, 16, 32, 64, 128, 256"] },
         13: { title: "Closed Loop Type", options: ["0 = Open Loop", "1 = Closed Loop"] },
         14: { title: "Standstill Mode", options: ["0 = Normal", "1 = Freewheeling", "2 = Braking", "3 = Strong Braking"] },
+        25: { title: "Set Node ID", options: ["Takes effect immediately", "Send Save Config (24) to", "the NEW ID to persist it"] },
     };
 
     function startInlineEdit(mid, valSpan) {
@@ -908,11 +969,27 @@
         document.getElementById('nodeModal').style.display = 'flex';
     }
 
+    // On first connect only: once nodes start being discovered, wait briefly for more
+    // to trickle in, then jump to viewing the lowest node ID found. Debounced so a
+    // burst of nodes appearing in quick succession only results in one selection.
+    function scheduleAutoSelect() {
+        clearTimeout(autoSelectTimer);
+        autoSelectTimer = setTimeout(() => {
+            if (!pendingAutoSelect || foundNodes.size === 0) return;
+            pendingAutoSelect = false;
+            const lowest = Math.min(...foundNodes.keys());
+            document.getElementById('nodeIdSelect').value = lowest;
+            document.getElementById('nodeIdSelect').dispatchEvent(new Event('change'));
+        }, 400);
+    }
+
     // --- BUTTON BINDINGS ---
 
     // Clean disconnect — call this on both manual disconnect and USB unplug
-    function showDisconnectToast() {
+    function showDisconnectToast(message) {
         const toast = document.getElementById('disconnectToast');
+        const text = document.getElementById('toastText');
+        text.innerHTML = message || '<strong>Board Disconnected</strong> - USB connection lost';
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 4000);
     }
@@ -922,6 +999,8 @@
         keepReading = false;
         window.guiConnected = false;
         foundNodes.clear();
+        pendingAutoSelect = false;
+        clearTimeout(autoSelectTimer);
         if (reader) { try { await reader.cancel(); } catch(_) {} reader = null; }
         if (port) { try { await port.close(); } catch(_) {} port = null; }
         refreshSystemStatus();
@@ -974,10 +1053,19 @@
             await port.open({ baudRate: 115200 });
             keepReading = true;
             window.guiConnected = true;
+            pendingAutoSelect = true; // arm the one-shot "select lowest node" for this connection
             refreshSystemStatus();
             setTimeout(triggerGlobalRefresh, 500);
             guiReadLoop();
-        } catch(e) {}
+        } catch(e) {
+            console.error('Serial connect failed:', e);
+            port = null;
+            keepReading = false;
+            window.guiConnected = false;
+            pendingAutoSelect = false;
+            refreshSystemStatus();
+            showDisconnectToast(`<strong>Connect Failed</strong> - ${e.message || 'could not open port'}. Close Serial Monitor / other tabs using this port and try again.`);
+        }
     };
 
     // FIXED: Target node logic updates UI and maintains telemetry checkboxes
@@ -1070,6 +1158,12 @@
             if (num) num.value = val;
             if (slider) slider.value = val;
             if (pct) pct.innerText = Math.round(val / 4095 * 100) + '%';
+        } else if (fn === 4) { // Digital Input (read-only)
+            const el = document.getElementById(`${pin}ValReadout`);
+            if (el) el.innerText = val ? 'HIGH (1)' : 'LOW (0)';
+        } else if (fn === 5) { // Analog Input (read-only, mV)
+            const el = document.getElementById(`${pin}ValReadout`);
+            if (el) el.innerText = `${val} mV`;
         }
     }
 
@@ -1133,10 +1227,32 @@
                         <span id="${pin}ValPct" style="color:#888; font-size:0.8em; width:35px; text-align:right;">0%</span>
                     </div>
                 </div>`;
+        } else if (fn === 4) { // Digital Input (read-only, RTR to read)
+            wrap.style.display = 'block';
+            label.innerText = 'Live State (read-only)';
+            container.innerHTML = `
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="${pin}ValReadout" style="flex:1; background:#111; border:1px solid #444; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">--</span>
+                    <button class="btn btn-grey" style="padding:6px 10px; font-size:0.75em;" onclick="refreshAuxLive()" title="Refresh live value">⟳</button>
+                </div>`;
+        } else if (fn === 5) { // Analog Input (read-only, mV, RTR to read)
+            wrap.style.display = 'block';
+            label.innerText = 'Live Value, mV (read-only)';
+            container.innerHTML = `
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="${pin}ValReadout" style="flex:1; background:#111; border:1px solid #444; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">-- mV</span>
+                    <button class="btn btn-grey" style="padding:6px 10px; font-size:0.75em;" onclick="refreshAuxLive()" title="Refresh live value">⟳</button>
+                </div>`;
         } else {
             wrap.style.display = 'none';
             container.innerHTML = '';
         }
+    }
+
+    // Requests a fresh AUX read (MsgType 26 RTR). The reply is parsed in parseLine(),
+    // which calls setAuxValue() to refresh the live readouts above if the modal is open.
+    function refreshAuxLive() {
+        requestRtr(26);
     }
 
     function getAuxValue(pin) {
@@ -1170,6 +1286,62 @@
         const canId = (parseInt(nid) << 6) | 26;
         const payload = buildAuxPayload();
         await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 ${payload}`);
+        setTimeout(triggerGlobalRefresh, 100);
+    }
+
+    // --- LED STATE MODAL ---
+    let ledModalState = { led1: 0, led2: 0 };
+
+    function openLedModal() {
+        ledModalState = { led1: lastLedState.led1, led2: lastLedState.led2 };
+        renderLedToggle(1);
+        renderLedToggle(2);
+        updateLedPreview();
+        document.getElementById('ledModal').style.display = 'flex';
+    }
+
+    function renderLedToggle(num) {
+        const btn = document.getElementById(`led${num}Toggle`);
+        const on = !!ledModalState[`led${num}`];
+        btn.innerText = on ? 'ON' : 'OFF';
+        btn.style.backgroundColor = on ? 'var(--accent-green)' : '#444';
+    }
+
+    function toggleLedState(num) {
+        ledModalState[`led${num}`] = ledModalState[`led${num}`] ? 0 : 1;
+        renderLedToggle(num);
+        updateLedPreview();
+    }
+
+    function buildLedPayload() {
+        const buf = new ArrayBuffer(8), view = new DataView(buf);
+        view.setUint8(0, ledModalState.led1 ? 1 : 0);
+        view.setUint8(1, ledModalState.led2 ? 1 : 0);
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+
+    function updateLedPreview() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        const canId = (parseInt(nid) << 6) | 9;
+        const payload = buildLedPayload();
+        document.getElementById('ledPayloadPreview').innerText =
+            `${canId.toString(16).toUpperCase().padStart(2,'0')} 0 ${payload}`;
+    }
+
+    async function sendLedConfig() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        const canId = (parseInt(nid) << 6) | 9;
+        const payload = buildLedPayload();
+        await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 ${payload}`);
+        setTimeout(triggerGlobalRefresh, 100);
+    }
+
+    // --- EMERGENCY STOP ---
+    // Any payload value triggers it on the firmware side; re-enable afterwards via the Enable command.
+    async function sendEStop() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        const canId = (parseInt(nid) << 6) | 6;
+        await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 0100000000000000`);
         setTimeout(triggerGlobalRefresh, 100);
     }
 
