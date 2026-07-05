@@ -872,6 +872,10 @@
         Object.entries(CAN_FORMATS).forEach(([id, info]) => {
             if (id === '6') {
                 cfg.innerHTML += `<div class="data-row" data-mid="6" data-type="config"><span class="data-label">[6] ${info[0]}</span><button class="btn btn-grey" style="padding: 4px 16px; font-size: 0.78em;" onclick="event.stopPropagation(); sendEStop();">STOP</button></div>`;
+            } else if (id === '23') {
+                cfg.innerHTML += `<div class="data-row" data-mid="23" data-type="config"><span class="data-label">[23] ${info[0]}</span><button class="btn btn-grey" style="padding: 4px 16px; font-size: 0.78em;" onclick="event.stopPropagation(); sendResetDefaults();">RESET</button></div>`;
+            } else if (id === '24') {
+                cfg.innerHTML += `<div class="data-row" data-mid="24" data-type="config"><span class="data-label">[24] ${info[0]}</span><span class="data-value" style="color:#888; font-weight:normal; font-size:0.78em;">Use Save to Flash button</span></div>`;
             } else {
                 cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
             }
@@ -885,7 +889,7 @@
             row.addEventListener('dblclick', (e) => {
                 if(e.target.classList.contains('plot-trigger')) return;
                 const mid = row.dataset.mid, valSpan = row.querySelector('.data-value');
-                if (mid === '6') return; // STOP is a single-click button, not a double-click edit
+                if (mid === '6' || mid === '23' || mid === '24') return; // single-click buttons / static note, not double-click edits
                 if (mid === '26') { openAuxModal(); return; }
                 if (mid === '9') { openLedModal(); return; }
                 if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
@@ -1073,8 +1077,9 @@
         const newNid = document.getElementById('nodeIdSelect').value;
         updatePreview();
         
-        // Reset displayed values for the new node
-        document.querySelectorAll('.data-value').forEach(v => v.innerText = "---");
+        // Reset displayed values for the new node (only rows that actually hold a live/RTR'd
+        // value -- static notes like the Save Config row have no id and should stay put)
+        document.querySelectorAll('.data-value[id^="val-"]').forEach(v => v.innerText = "---");
         
         // Sync checkboxes: Check if a dataset already exists for this node+mid key
         document.querySelectorAll('.plot-trigger').forEach(cb => {
@@ -1343,6 +1348,15 @@
         const canId = (parseInt(nid) << 6) | 6;
         await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 0100000000000000`);
         setTimeout(triggerGlobalRefresh, 100);
+    }
+
+    // --- RESET TO DEFAULT ---
+    async function sendResetDefaults() {
+        const nid = document.getElementById('nodeIdSelect').value;
+        if (!confirm(`Reset Node ${nid} to default settings? This cannot be undone.`)) return;
+        const canId = (parseInt(nid) << 6) | 23;
+        await sendRaw(`${canId.toString(16).toUpperCase().padStart(2,'0')} 0 0000000000000000`);
+        setTimeout(triggerGlobalRefresh, 200);
     }
 
     initUI();
