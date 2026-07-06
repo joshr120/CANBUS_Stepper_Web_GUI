@@ -4,25 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CAN Node Controller Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #252525; --header-bg: #2B2B2B; --card-bg: #1A1A1A;
-            --accent-blue: #3498db; --accent-green: #2ecc71; --accent-red: #a93226; --text-color: #ffffff;
-            --border: #3E3E3E; --stale-color: #555555;
-            --accent-orange: #e67e22;
+            --bg-color: #121212; --header-bg: #1a1a1a; --card-bg: #171717;
+            --accent-blue: #ff5c26; --accent-green: #45d483; --accent-red: #d94a33; --text-color: #ededed;
+            --border: #2a2a2a; --stale-color: #383838;
+            --accent-orange: #ffb454;
+            --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+            --grad-orange: linear-gradient(135deg, #ff7433 0%, #f2500f 100%);
         }
-        
-        body { 
-            background-color: var(--bg-color); 
-            color: var(--text-color); 
-            font-family: sans-serif; 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            overflow: hidden; 
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Space Grotesk', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
+
+        input[type="checkbox"], input[type="range"] { accent-color: var(--accent-blue); }
 
         /* --- SIDEBAR SYSTEM --- */
         #sidebar {
@@ -33,17 +40,18 @@
         #sidebar.open { left: 0; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
         .sidebar-item {
             padding: 15px 25px; cursor: pointer; display: flex; align-items: center; gap: 12px;
-            color: #aaa; transition: 0.2s; border-left: 4px solid transparent;
+            color: #a3a3a3; transition: 0.2s; border-left: 3px solid transparent; letter-spacing: 0.02em;
         }
-        .sidebar-item:hover { background: #333; color: white; }
-        .sidebar-item.active { background: #1a1a1a; color: var(--accent-blue); border-left-color: var(--accent-blue); }
+        .sidebar-item:hover { background: #222222; color: #fff; }
+        .sidebar-item.active { background: #171717; color: var(--accent-blue); border-left-color: var(--accent-blue); }
 
-        .hamburger { cursor: pointer; font-size: 1.5rem; padding: 5px; margin-right: 10px; user-select: none; }
+        .hamburger { cursor: pointer; font-size: 1.5rem; padding: 5px; margin-right: 10px; user-select: none; color: #c8c8c8; }
+        .hamburger:hover { color: #fff; }
 
         /* Connection Lock Overlay */
         #connectionOverlay {
             position: fixed; top: 60px; left: 0; width: 100%; height: calc(100% - 110px);
-            background: rgba(20, 20, 20, 0.6);
+            background: rgba(12, 11, 9, 0.6);
             backdrop-filter: blur(4px) grayscale(100%);
             z-index: 900;
             display: flex;
@@ -53,25 +61,25 @@
         }
 
         @keyframes pulse-glow-intense {
-            0% { box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); border-color: var(--accent-blue); }
-            50% { box-shadow: 0 0 25px rgba(52, 152, 219, 0.8), 0 0 50px rgba(52, 152, 219, 0.6), 0 0 80px rgba(52, 152, 219, 0.4); border-color: #ffffff; }
-            100% { box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); border-color: var(--accent-blue); }
+            0% { box-shadow: 0 0 6px rgba(255, 92, 38, 0.3); }
+            50% { box-shadow: 0 0 14px rgba(255, 92, 38, 0.5), 0 0 30px rgba(255, 92, 38, 0.25); }
+            100% { box-shadow: 0 0 6px rgba(255, 92, 38, 0.3); }
         }
 
-        .glow-active { animation: pulse-glow-intense 1.8s infinite ease-in-out; z-index: 1002; border: 2px solid var(--accent-blue) !important; }
+        .glow-active { animation: pulse-glow-intense 1.8s infinite ease-in-out; z-index: 1002; }
 
         header { background-color: var(--header-bg); padding: 10px 20px; display: flex; align-items: center; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 1001; }
         .header-spacer { flex: 1; }
         .header-left, .header-right { display: flex; align-items: center; gap: 15px; }
 
-        main { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            grid-template-rows: 1fr 1fr; 
-            gap: 20px; 
-            padding: 25px; 
-            flex: 1; 
-            overflow: hidden; 
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+            padding: 25px;
+            flex: 1;
+            overflow: hidden;
             box-sizing: border-box;
         }
 
@@ -85,12 +93,13 @@
             flex: 1;
             overflow: hidden;
         }
-        .planner-table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.85em; }
-        .planner-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); color: #888; }
-        .planner-table td { padding: 8px; border-bottom: 1px solid #222; }
-        .planner-input { background: #111; border: 1px solid #444; color: white; padding: 4px; border-radius: 3px; width: 70px; font-family: monospace; }
+        .planner-table { width: 100%; border-collapse: collapse; color: #c8c8c8; font-size: 0.85em; font-family: var(--mono); }
+        .planner-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); color: #7a7a7a; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; }
+        .planner-table td { padding: 8px; border-bottom: 1px solid #222222; }
+        .planner-input { background: #0f0f0f; border: 1px solid #383838; color: #ededed; padding: 4px; border-radius: 6px; width: 70px; font-family: var(--mono); }
         .btn-delete { color: var(--accent-red); cursor: pointer; font-weight: bold; text-align: center; }
-        .node-separator { background: #333; color: var(--accent-blue); font-size: 0.7em; font-weight: bold; padding: 2px 8px !important; letter-spacing: 1px; }
+        .btn-delete:hover { color: #ff7a5c; }
+        .node-separator { background: #222222; color: var(--accent-blue); font-size: 0.7em; font-weight: bold; padding: 2px 8px !important; letter-spacing: 0.15em; font-family: var(--mono); }
 
         footer { height: 50px; background: var(--header-bg); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; z-index: 1001; }
 
@@ -104,72 +113,78 @@
         .led-stale { background-color: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
         .led-blink { background-color: #ffffff; box-shadow: 0 0 10px #ffffff; }
 
-        #nodeCounter { cursor: pointer; text-decoration: underline; color: #888; margin-left: 5px; transition: color 0.2s; }
+        #nodeCounter { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; color: #8a8a8a; margin-left: 5px; transition: color 0.2s; }
         #nodeCounter:hover { color: var(--accent-blue); }
 
-        .modal-overlay { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-        .modal-content { background: var(--card-bg); border: 1px solid var(--border); padding: 25px; border-radius: 12px; width: 420px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        
-        .node-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0; max-height: 200px; overflow-y: auto; }
-        .node-chip { background: #333; border: 1px solid var(--accent-blue); color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-family: monospace; font-weight: bold; transition: 0.2s; }
-        .node-chip:hover { background: var(--accent-blue); transform: translateY(-2px); }
+        .modal-overlay { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(8,7,6,0.82); align-items: center; justify-content: center; }
+        .modal-content { background: var(--card-bg); border: 1px solid var(--border); padding: 25px; border-radius: 16px; width: 420px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
 
-        .btn { background-color: var(--accent-blue); color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s, box-shadow 0.2s; font-size: 0.85em; display: flex; align-items: center; gap: 8px; }
-        .btn-send { background-color: #e67e22; }
-        .btn-disconnect { background-color: var(--accent-red) !important; box-shadow: none !important; animation: none !important; }
+        .node-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0; max-height: 200px; overflow-y: auto; }
+        .node-chip { background: #222222; border: 1px solid rgba(255, 92, 38, 0.55); color: #ededed; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: var(--mono); font-weight: bold; font-size: 0.85em; transition: 0.2s; }
+        .node-chip:hover { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; transform: translateY(-2px); }
+
+        .btn { background: var(--grad-orange); color: #fff; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: var(--mono); font-size: 0.8em; letter-spacing: 0.02em; transition: filter 0.2s, box-shadow 0.2s, background 0.2s; display: flex; align-items: center; gap: 8px; }
+        .btn:hover { filter: brightness(1.12); }
+        .btn-send { background: var(--grad-orange); }
+        .btn-disconnect { background: var(--accent-red) !important; box-shadow: none !important; animation: none !important; }
         .btn-disconnect:disabled { opacity: 0.35; filter: grayscale(60%); cursor: not-allowed; }
-        
-        .btn-refresh-small { 
-            background-color: #444; 
-            padding: 5px 12px; 
-            font-size: 0.7em; 
-            border: 1px solid #555; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px; 
+
+        .btn-refresh-small {
+            background: #222222;
+            color: #c8c8c8;
+            padding: 5px 12px;
+            font-size: 0.7em;
+            border: 1px solid #383838;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
             white-space: nowrap;
-            width: 120px; 
+            width: 120px;
             justify-content: center;
         }
-        .btn-grey { background-color: #444 !important; }
-        .btn-save-flash { background-color: #444 !important; border: 1px solid #555 !important; transition: 0.3s; }
-        .btn-save-flash:hover { background-color: var(--accent-orange) !important; border-color: #f39c12 !important; }
-        
-        .instruction-hint { font-size: 0.65em; color: #777; font-style: italic; white-space: nowrap; margin-left: 10px; }
+        .btn-grey { background: #222222 !important; border: 1px solid #383838; color: #d5d5d5; }
+        .btn-save-flash { background: #222222 !important; border: 1px solid #383838 !important; transition: 0.3s; }
+        .btn-save-flash:hover { background: var(--accent-blue) !important; border-color: #ff8a3c !important; color: #fff; }
 
-        input, select { background: #333; color: white; border: 1px solid var(--border); padding: 5px; border-radius: 4px; }
-        .preview-box { font-family: monospace; background: #000; padding: 5px 10px; border-radius: 4px; color: #aaa; border: 1px solid #444; min-width: 150px; font-size: 0.85em; }
+        .instruction-hint { font-size: 0.62em; color: #666666; font-family: var(--mono); white-space: nowrap; margin-left: 10px; }
 
-        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        
-        .scroll-header { 
-            padding: 0 12px; 
-            background: var(--header-bg); 
-            border-bottom: 1px solid var(--border); 
-            flex-shrink: 0; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            height: 70px; 
-            box-sizing: border-box; 
+        input, select { background: #1f1f1f; color: #ededed; border: 1px solid #383838; padding: 5px; border-radius: 6px; font-family: var(--mono); }
+        input:focus, select:focus { outline: none; box-shadow: none; border-color: var(--accent-blue); }
+        .preview-box { font-family: var(--mono); background: #0d0d0d; padding: 5px 10px; border-radius: 6px; color: #a8a8a8; border: 1px solid #2e2e2e; min-width: 150px; font-size: 0.85em; }
+
+        .scroll-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+
+        .scroll-header {
+            padding: 0 14px;
+            background: #1c1c1c;
+            border-bottom: 1px solid var(--border);
+            border-radius: 14px 14px 0 0;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 70px;
+            box-sizing: border-box;
         }
         .header-title-group { display: flex; align-items: baseline; }
-        .header-main { font-weight: bold; color: #5dade2; font-size: 1.1em; text-transform: uppercase; }
-        .scroll-content { flex: 1; overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: #444 transparent; }
+        .header-main { font-family: var(--mono); font-weight: 500; color: #b0b0b0; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.18em; }
+        .header-main::before { content: '// '; color: var(--accent-blue); }
+        .scroll-content { flex: 1; overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: #383838 transparent; }
 
-        .data-row { display: flex; align-items: center; padding: 6px 8px; border-bottom: 1px solid #2a2a2a; font-family: monospace; gap: 10px; font-size: 0.85em; user-select: none; }
-        .data-row:hover { background: #252525; cursor: pointer; }
-        .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ccc; }
-        .data-value { color: var(--accent-green); width: 140px; text-align: right; font-weight: bold; transition: color 0.4s ease; }
+        .data-row { display: flex; align-items: center; padding: 6px 8px; border-bottom: 1px solid #222222; font-family: var(--mono); gap: 10px; font-size: 0.85em; user-select: none; }
+        .data-row:hover { background: #1e1e1e; cursor: pointer; }
+        .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a3a3; }
+        .data-value { color: #e8e8e6; width: 140px; text-align: right; font-weight: bold; transition: color 0.4s ease; }
         .data-value.stale { color: var(--stale-color); }
-        .inline-edit { background: #444; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: monospace; border-radius: 2px; }
-        .inline-hint { position: absolute; right: 0; top: 100%; margin-top: 4px; background: #1a1a2e; border: 1px solid var(--accent-blue); border-radius: 5px; padding: 7px 10px; font-size: 0.72em; color: #aaa; white-space: pre; line-height: 1.6; z-index: 100; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .inline-hint strong { color: #ddd; display: block; margin-bottom: 2px; }
+        .inline-edit { background: #222222; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: var(--mono); border-radius: 4px; }
+        .inline-hint { position: absolute; right: 0; top: 100%; margin-top: 4px; background: #1e1e1e; border: 1px solid rgba(255,92,38,0.5); border-radius: 8px; padding: 7px 10px; font-size: 0.72em; color: #a3a3a3; white-space: pre; line-height: 1.6; z-index: 100; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .inline-hint strong { color: #dddddd; display: block; margin-bottom: 2px; }
         .data-value { position: relative; }
 
-        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; min-height: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 6px; border: 1px solid #444; }
+        #graph-area { grid-column: span 2; background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 15px; position: relative; min-height: 0; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+        .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(12,11,9,0.85); padding: 6px 12px; border-radius: 8px; border: 1px solid #2e2e2e; }
+        .graph-controls label { font-family: var(--mono); font-size: 0.85em; }
 
-        #progFirmwareBtn { height: 32px; padding: 0 15px; font-size: 0.75em; display: flex; align-items: center; }
+        #progFirmwareBtn { height: 32px; padding: 0 15px; font-size: 0.72em; display: flex; align-items: center; letter-spacing: 0.06em; }
         @keyframes fwSpin { to { transform: rotate(360deg); } }
 
         a { color: var(--accent-blue); text-decoration: none; }
@@ -178,9 +193,9 @@
         /* --- DISCONNECT TOAST --- */
         #disconnectToast {
             position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%) translateY(20px);
-            background: #2a1a1a; border: 1px solid var(--accent-red); border-radius: 8px;
+            background: #221514; border: 1px solid var(--accent-red); border-radius: 10px;
             padding: 12px 20px; display: flex; align-items: center; gap: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(169,50,38,0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(217,74,51,0.3);
             z-index: 3000; opacity: 0; pointer-events: none;
             transition: opacity 0.3s ease, transform 0.3s ease;
             white-space: nowrap;
@@ -189,8 +204,9 @@
             opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
         }
         #disconnectToast .toast-icon { font-size: 1.1em; }
-        #disconnectToast .toast-text { font-size: 0.82em; color: #e0a0a0; }
+        #disconnectToast .toast-text { font-size: 0.82em; color: #e0a89e; font-family: var(--mono); }
         #disconnectToast .toast-text strong { color: #fff; }
+    
     </style>
 </head>
 <body>
@@ -201,14 +217,14 @@
 </div>
 
 <nav id="sidebar">
-    <div class="sidebar-item active" onclick="switchView('dashboard', this)"><span>📊</span> Dashboard</div>
-    <div class="sidebar-item" onclick="switchView('motion', this)"><span>🎬</span> Motion Studio</div>
+    <div class="sidebar-item active" onclick="switchView('dashboard', this)"><span style="font-family:var(--mono); font-size:0.72em; color:var(--accent-blue);">01</span> Dashboard</div>
+    <div class="sidebar-item" onclick="switchView('motion', this)"><span style="font-family:var(--mono); font-size:0.72em; color:var(--accent-blue);">02</span> Motion Studio</div>
 </nav>
 
 <div id="nodeModal" class="modal-overlay">
     <div class="modal-content">
         <h3 style="margin:0; color:var(--accent-blue);">DISCOVERED NODES</h3>
-        <p style="font-size: 0.75em; color: #777; margin-bottom: 15px;">Click an ID to set as active target</p>
+        <p style="font-size: 0.75em; color: #7a7a7a; margin-bottom: 15px;">Click an ID to set as active target</p>
         <div id="nodeGrid" class="node-grid"></div>
         <button class="btn btn-grey" style="width:100%" onclick="closeModals()">Close</button>
     </div>
@@ -219,10 +235,10 @@
         <h3 style="margin: 0 0 15px 0; color: var(--accent-blue); text-align: center;">AUX CONNECTOR CONFIG</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
             <!-- AUX1 -->
-            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
-                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX1</div>
+            <div style="background: #1f1f1f; border: 1px solid #383838; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
+                <div style="font-weight: bold; color: var(--accent-blue); margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX1</div>
                 <div style="margin-bottom: 8px;">
-                    <label style="font-size: 0.75em; color: #888;">Function</label>
+                    <label style="font-size: 0.75em; color: #8a8a8a;">Function</label>
                     <select id="aux1Func" style="width: 100%; margin-top: 3px;" onchange="onAuxFuncChange('aux1')">
                         <option value="0">Disabled</option>
                         <option value="1">Serial Control</option>
@@ -233,15 +249,15 @@
                     </select>
                 </div>
                 <div id="aux1ValWrap" style="display:none;">
-                    <label style="font-size: 0.75em; color: #888;" id="aux1ValLabel">Value</label>
+                    <label style="font-size: 0.75em; color: #8a8a8a;" id="aux1ValLabel">Value</label>
                     <div style="margin-top: 3px;" id="aux1ValInput"></div>
                 </div>
             </div>
             <!-- AUX2 -->
-            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
-                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX2</div>
+            <div style="background: #1f1f1f; border: 1px solid #383838; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden;">
+                <div style="font-weight: bold; color: var(--accent-blue); margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">AUX2</div>
                 <div style="margin-bottom: 8px;">
-                    <label style="font-size: 0.75em; color: #888;">Function</label>
+                    <label style="font-size: 0.75em; color: #8a8a8a;">Function</label>
                     <select id="aux2Func" style="width: 100%; margin-top: 3px;" onchange="onAuxFuncChange('aux2')">
                         <option value="0">Disabled</option>
                         <option value="1">Serial Control</option>
@@ -252,18 +268,18 @@
                     </select>
                 </div>
                 <div id="aux2ValWrap" style="display:none;">
-                    <label style="font-size: 0.75em; color: #888;" id="aux2ValLabel">Value</label>
+                    <label style="font-size: 0.75em; color: #8a8a8a;" id="aux2ValLabel">Value</label>
                     <div style="margin-top: 3px;" id="aux2ValInput"></div>
                 </div>
             </div>
         </div>
         <!-- Serial mode notice -->
-        <div id="auxSerialNotice" style="display:none; margin-top: 12px; padding: 8px 12px; background: #1a2a3a; border: 1px solid var(--accent-blue); border-radius: 6px; font-size: 0.75em; color: #7fb3d3;">
-            ⚡ Serial Control uses both pins. AUX1 = TX, AUX2 = RX. Both are locked to this mode.
+        <div id="auxSerialNotice" style="display:none; margin-top: 12px; padding: 8px 12px; background: #241a12; border: 1px solid var(--accent-blue); border-radius: 6px; font-size: 0.75em; color: #ffb489;">
+            // Serial Control uses both pins. AUX1 = TX, AUX2 = RX. Both are locked to this mode.
         </div>
         <!-- Payload preview -->
         <div style="margin-top: 14px;">
-            <label style="font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
+            <label style="font-size: 0.75em; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
             <div class="preview-box" id="auxPayloadPreview" style="margin-top: 4px; width: 100%; box-sizing: border-box;">-- -- ----------------</div>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 15px;">
@@ -278,19 +294,19 @@
         <h3 style="margin: 0 0 15px 0; color: var(--accent-blue); text-align: center;">LED STATE CONFIG</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
             <!-- LED1 -->
-            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 1</div>
+            <div style="background: #1f1f1f; border: 1px solid #383838; border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="font-weight: bold; color: var(--accent-blue); margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 1</div>
                 <button id="led1Toggle" class="btn" style="width: 100%; justify-content: center;" onclick="toggleLedState(1)">OFF</button>
             </div>
             <!-- LED2 -->
-            <div style="background: #222; border: 1px solid #444; border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="font-weight: bold; color: #5dade2; margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 2</div>
+            <div style="background: #1f1f1f; border: 1px solid #383838; border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="font-weight: bold; color: var(--accent-blue); margin-bottom: 10px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">LED 2</div>
                 <button id="led2Toggle" class="btn" style="width: 100%; justify-content: center;" onclick="toggleLedState(2)">OFF</button>
             </div>
         </div>
         <!-- Payload preview -->
         <div style="margin-top: 14px;">
-            <label style="font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
+            <label style="font-size: 0.75em; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.5px;">Payload Preview</label>
             <div class="preview-box" id="ledPayloadPreview" style="margin-top: 4px; width: 100%; box-sizing: border-box;">-- -- ----------------</div>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 15px;">
@@ -303,41 +319,41 @@
 <div id="firmwareModal" class="modal-overlay">
     <div class="modal-content" style="text-align:left; width:480px; max-width:96vw; padding:26px;">
 
-        <h3 style="margin:0 0 18px 0; color:#eee; text-align:center; font-size:1.1em; font-weight:600;">Update Firmware</h3>
+        <h3 style="margin:0 0 18px 0; color:#ece7e1; text-align:center; font-size:1.1em; font-weight:600;">Update Firmware</h3>
 
         <!-- STEP 1: Connect -->
         <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px;">
-            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">1. Connect to device</div>
+            <div style="font-size:0.8em; font-weight:600; color:#949494; margin-bottom:12px;">1. Connect to CANBUS Stepper board</div>
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <div id="fwDot" style="width:7px;height:7px;border-radius:50%;background:var(--accent-red);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></div>
-                <span id="fwStatusText" style="font-size:0.82em; color:#888;">Disconnected</span>
+                <span id="fwStatusText" style="font-size:0.82em; color:#8a8a8a;">Disconnected</span>
             </div>
-            <div id="fwChipRow" style="display:none; font-size:0.75em; color:#777; line-height:1.6; margin-bottom:12px;"></div>
+            <div id="fwChipRow" style="display:none; font-size:0.75em; color:#7a7a7a; line-height:1.6; margin-bottom:12px;"></div>
             <button id="fwConnectBtn" class="btn" style="font-size:0.78em; padding:6px 16px;">Connect</button>
         </div>
 
         <!-- STEP 2: File -->
         <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px;">
-            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">2. Choose firmware</div>
+            <div style="font-size:0.8em; font-weight:600; color:#949494; margin-bottom:12px;">2. Choose firmware</div>
             <button id="fwGithubBtn" class="btn" style="width:100%; justify-content:center; font-size:0.82em; padding:10px; font-weight:700;">Get Latest from GitHub</button>
-            <div id="fwFileInfo" style="display:none; margin-top:10px; font-size:0.78em; color:#aaa; align-items:center; gap:8px;">
+            <div id="fwFileInfo" style="display:none; margin-top:10px; font-size:0.78em; color:#a3a3a3; align-items:center; gap:8px;">
                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="fwFileName">—</span>
-                <span style="color:#666;flex-shrink:0; font-size:0.9em;" id="fwFileSize">—</span>
+                <span style="color:#666666;flex-shrink:0; font-size:0.9em;" id="fwFileSize">—</span>
             </div>
             <div id="fwDropzone" style="margin-top:10px; text-align:center; cursor:pointer; position:relative; padding:6px; border:1px solid transparent; border-radius:4px; transition:border-color 0.2s, background 0.2s;">
                 <input type="file" id="fwFileInput" accept=".bin" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
-                <span style="font-size:0.72em; color:#555; text-decoration:underline; text-decoration-color:#3a3a3a; text-underline-offset:3px;">or choose a .bin file manually</span>
+                <span style="font-size:0.72em; color:#555555; text-decoration:underline; text-decoration-color:#3a3a3a; text-underline-offset:3px;">or choose a .bin file manually</span>
             </div>
         </div>
 
         <!-- STEP 3: Flash -->
         <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px;">
-            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">3. Flash</div>
+            <div style="font-size:0.8em; font-weight:600; color:#949494; margin-bottom:12px;">3. Flash</div>
             <button id="fwFlashBtn" class="btn" style="width:100%; justify-content:center; font-size:0.85em; padding:10px; background:var(--accent-green)!important; color:#0f1f14!important; font-weight:700;" disabled>Flash Device</button>
             <div id="fwProgressWrap" style="display:none; margin-top:14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72em; color:#888; margin-bottom:5px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72em; color:#8a8a8a; margin-bottom:5px;">
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <svg id="fwSpinner" viewBox="0 0 24 24" style="display:none; width:11px; height:11px; animation:fwSpin 0.8s linear infinite; flex-shrink:0;"><circle cx="12" cy="12" r="9" fill="none" stroke="#666" stroke-width="3" stroke-dasharray="40 20"/></svg>
+                        <svg id="fwSpinner" viewBox="0 0 24 24" style="display:none; width:11px; height:11px; animation:fwSpin 0.8s linear infinite; flex-shrink:0;"><circle cx="12" cy="12" r="9" fill="none" stroke="#666666" stroke-width="3" stroke-dasharray="40 20"/></svg>
                         <span id="fwProgLabel">Writing...</span>
                     </div>
                     <span id="fwProgPct">0%</span>
@@ -346,7 +362,7 @@
                     <div id="fwProgBar" style="height:100%; width:0%; background:var(--accent-blue); border-radius:99px; transition:width 0.2s;"></div>
                 </div>
             </div>
-            <div id="fwLog" style="margin-top:16px; font-family:monospace; font-size:0.72em; height:100px; overflow-y:auto; color:#666; line-height:1.7; scrollbar-width:thin; scrollbar-color:#333 transparent; display:flex; flex-direction:column; gap:0;"></div>
+            <div id="fwLog" style="margin-top:16px; font-family:var(--mono); font-size:0.72em; height:100px; overflow-y:auto; color:#666666; line-height:1.7; scrollbar-width:thin; scrollbar-color:#2a2a2a transparent; display:flex; flex-direction:column; gap:0;"></div>
         </div>
 
         <button class="btn btn-grey" id="fwCloseBtn" style="width:100%; justify-content:center; font-size:0.82em;">Close</button>
@@ -357,16 +373,16 @@
     <div class="header-left">
         <div class="hamburger" id="hamBtn">☰</div>
         <button id="connectBtn" class="btn glow-active">
-            <span id="connIcon" style="font-size: 1.2em;">🔗</span>
+            <span id="connIcon" style="font-size: 1.2em;">→</span>
             <span id="connText">Connect Serial</span>
         </button>
-        <div style="border-left: 1px solid #444; padding-left: 15px;">
-            <span style="color:#888; font-size:0.8em;">TARGET NODE</span>
+        <div style="border-left: 1px solid #383838; padding-left: 15px;">
+            <span style="color:#8a8a8a; font-size:0.8em;">TARGET NODE</span>
             <input type="number" id="nodeIdSelect" value="1" min="0" max="31" style="width: 45px;">
         </div>
     </div>
     <div class="header-spacer"></div>
-    <div class="header-right" style="border-left: 1px solid #444; padding-left: 15px;">
+    <div class="header-right" style="border-left: 1px solid #383838; padding-left: 15px;">
         <select id="cmdType"></select>
         <input type="text" id="cmdValue" placeholder="Value" style="width: 80px;">
         <div class="preview-box" id="previewStr">-- -- ----------------</div>
@@ -396,7 +412,7 @@
                 <span class="instruction-hint">Select to Graph</span>
             </div>
             <div style="display: flex; flex-direction: column; justify-content: center;">
-                <span style="font-size: 0.6em; color: #444; text-transform: uppercase; letter-spacing: 1px;">Streaming</span>
+                <span style="font-size: 0.6em; color: #383838; text-transform: uppercase; letter-spacing: 1px;">Streaming</span>
             </div>
         </div>
         <div id="telemetry-list" class="scroll-content"></div>
@@ -431,7 +447,7 @@
             </div>
             <div style="display:flex; gap:5px;">
                 <button class="btn btn-grey" onclick="sortWaypoints()" style="padding:4px 8px">SORT</button>
-                <button class="btn" onclick="addWaypoint()" style="background:#2ecc71; padding:4px 8px">+ STEP</button>
+                <button class="btn" onclick="addWaypoint()" style="background:#45d483; padding:4px 8px">+ STEP</button>
             </div>
         </div>
         <div class="scroll-content">
@@ -455,11 +471,11 @@
 
 <footer>
     <a href="https://thingsbyjosh.com" target="_blank" rel="noopener noreferrer" class="logo-container" style="text-decoration:none; cursor:pointer;">
-        <img src="img/footer.png" alt="Company Logo" onerror="this.style.display='none';">
+        <img src="img/footer.png" alt="Company Logo" onerror="this.style.display='none'; document.getElementById('logoText').style.display='flex';"><span id="logoText" style="display:none; align-items:center; gap:8px; font-weight:700; letter-spacing:0.05em; font-size:0.95em; color:#ededed;"><span style="width:10px; height:10px; background:var(--grad-orange); border-radius:3px; display:inline-block;"></span>THINGS BY JOSH</span>
     </a>
     <div class="status-container">
         <div id="statusLed" class="led-circle led-offline"></div>
-        <div style="font-size: 0.7em; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+        <div style="font-size: 0.7em; color: #666666; text-transform: uppercase; letter-spacing: 0.5px;">
             System Status: <span id="statusIndicator" style="color: var(--accent-red);">Offline</span>
             <span id="nodeCounter" title="Click to view discovered nodes"></span>
         </div>
@@ -502,8 +518,8 @@
         options: {
             responsive: true, maintainAspectRatio: false, animation: false,
             scales: {
-                x: { type: 'linear', position: 'bottom', grid: { color: '#333' }, ticks: { color: '#888' }, title: { display: true, text: 'Seconds', color: '#888' } },
-                y: { grid: { color: '#333' }, ticks: { color: '#888' } }
+                x: { type: 'linear', position: 'bottom', grid: { color: '#2a2a2a' }, ticks: { color: '#8a8a8a' }, title: { display: true, text: 'Seconds', color: '#8a8a8a' } },
+                y: { grid: { color: '#2a2a2a' }, ticks: { color: '#8a8a8a' } }
             },
             plugins: { legend: { labels: { color: '#fff', boxWidth: 10 } } }
         }
@@ -515,7 +531,7 @@
         data: { datasets: [] },
         options: {
             responsive: true, maintainAspectRatio: false,
-            scales: { x: { type: 'linear', title: { display: true, text: 'Time (ms)' }, grid: {color: '#333'}, ticks: {color: '#888'} }, y: { grid: {color: '#333'}, ticks: {color: '#888'} } },
+            scales: { x: { type: 'linear', title: { display: true, text: 'Time (ms)' }, grid: {color: '#2a2a2a'}, ticks: {color: '#8a8a8a'} }, y: { grid: {color: '#2a2a2a'}, ticks: {color: '#8a8a8a'} } },
             plugins: { legend: { labels: { color: '#fff' } } }
         }
     });
@@ -702,13 +718,13 @@
             counter.innerText = ""; led.className = 'led-circle led-offline';
             overlay.style.display = 'flex'; connectBtn.classList.add('glow-active');
             connectBtn.classList.remove('btn-disconnect');
-            connIcon.innerText = "🔗"; connText.innerText = "Connect Serial";
+            connIcon.innerText = "→"; connText.innerText = "Connect Serial";
             return;
         }
         overlay.style.display = 'none';
         connectBtn.classList.remove('glow-active');
         connectBtn.classList.add('btn-disconnect');
-        connIcon.innerText = "🔌"; connText.innerText = "Disconnect";
+        connIcon.innerText = "✕"; connText.innerText = "Disconnect";
         const count = foundNodes.size;
         if (count > 0) {
             indicator.innerText = "Active"; indicator.style.color = "var(--accent-green)";
@@ -837,7 +853,7 @@
             } else if (id === '23') {
                 cfg.innerHTML += `<div class="data-row" data-mid="23" data-type="config"><span class="data-label">[23] ${info[0]}</span><button class="btn btn-grey" style="padding: 4px 16px; font-size: 0.78em;" onclick="event.stopPropagation(); sendResetDefaults();">RESET</button></div>`;
             } else if (id === '24') {
-                cfg.innerHTML += `<div class="data-row" data-mid="24" data-type="config"><span class="data-label">[24] ${info[0]}</span><span class="data-value" style="color:#888; font-weight:normal; font-size:0.78em;">Use Save to Flash button</span></div>`;
+                cfg.innerHTML += `<div class="data-row" data-mid="24" data-type="config"><span class="data-label">[24] ${info[0]}</span><span class="data-value" style="color:#8a8a8a; font-weight:normal; font-size:0.78em;">Use Save to Flash button</span></div>`;
             } else {
                 cfg.innerHTML += `<div class="data-row" data-mid="${id}" data-type="config"><span class="data-label">[${id}] ${info[0]}</span><span class="data-value stale" id="val-${id}">---</span></div>`;
             }
@@ -1084,7 +1100,7 @@
 
     document.getElementById('saveFlashBtn').onclick = async () => {
         const nid = document.getElementById('nodeIdSelect').value;
-        if (confirm("Save settings to flash?")) {
+        if (confirm("Save settings to flash? Ensure settings work before flashing.")) {
             const canId = (parseInt(nid) << 6) | (24 & 0x3F);
             await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 0000000000000000`);
             document.getElementById('saveFlashBtn').innerText = "SAVED!";
@@ -1219,7 +1235,7 @@
                     <div style="display:flex; align-items:center; gap:8px;">
                         <input type="number" id="${pin}Val" min="0" max="4095" value="0" style="flex:1; min-width:0;"
                             oninput="document.getElementById('${pin}ValSlider').value=this.value; document.getElementById('${pin}ValPct').innerText=Math.round(this.value/4095*100)+'%'; updateAuxPreview()">
-                        <span id="${pin}ValPct" style="color:#888; font-size:0.8em; width:35px; text-align:right;">0%</span>
+                        <span id="${pin}ValPct" style="color:#8a8a8a; font-size:0.8em; width:35px; text-align:right;">0%</span>
                     </div>
                 </div>`;
         } else if (fn === 4) { // Digital Input (read-only, RTR to read)
@@ -1227,7 +1243,7 @@
             label.innerText = 'Live State (read-only)';
             container.innerHTML = `
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span id="${pin}ValReadout" style="flex:1; background:#111; border:1px solid #444; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">--</span>
+                    <span id="${pin}ValReadout" style="flex:1; background:#0f0f0f; border:1px solid #383838; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">--</span>
                     <button class="btn btn-grey" style="padding:6px 10px; font-size:0.75em;" onclick="refreshAuxLive()" title="Refresh live value">⟳</button>
                 </div>`;
         } else if (fn === 5) { // Analog Input (read-only, mV, RTR to read)
@@ -1235,7 +1251,7 @@
             label.innerText = 'Live Value, mV (read-only)';
             container.innerHTML = `
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span id="${pin}ValReadout" style="flex:1; background:#111; border:1px solid #444; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">-- mV</span>
+                    <span id="${pin}ValReadout" style="flex:1; background:#0f0f0f; border:1px solid #383838; border-radius:4px; padding:6px 10px; font-weight:bold; color:var(--accent-green); text-align:center;">-- mV</span>
                     <button class="btn btn-grey" style="padding:6px 10px; font-size:0.75em;" onclick="refreshAuxLive()" title="Refresh live value">⟳</button>
                 </div>`;
         } else {
@@ -1299,7 +1315,7 @@
         const btn = document.getElementById(`led${num}Toggle`);
         const on = !!ledModalState[`led${num}`];
         btn.innerText = on ? 'ON' : 'OFF';
-        btn.style.backgroundColor = on ? 'var(--accent-green)' : '#444';
+        btn.style.backgroundColor = on ? 'var(--accent-green)' : '#383838';
     }
 
     function toggleLedState(num) {
@@ -1391,18 +1407,18 @@ function fwFmt(bytes) {
 function fwNow() { return new Date().toTimeString().slice(0,8); }
 function fwAppendLog(msg, cls) {
     const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const color = {ok:'#2ecc71', err:'#a93226', warn:'#e67e22', data:'#3498db'}[cls] || '#3a5a6a';
+    const color = {ok:'#45d483', err:'#ff7a5c', warn:'#ffb454', data:'#ff8a54'}[cls] || '#7a7a7a';
     const line = document.createElement('div');
-    line.innerHTML = `<span style="color:#2a3a48;">[${fwNow()}]</span> <span style="color:${color};">${safe}</span>`;
+    line.innerHTML = `<span style="color:#4a4a4a;">[${fwNow()}]</span> <span style="color:${color};">${safe}</span>`;
     fwLog.appendChild(line);
     fwLog.scrollTop = fwLog.scrollHeight;
 }
 function fwSetStatus(state, text) {
-    const colors  = {connected:'#2ecc71', connecting:'#e67e22', error:'#a93226', off:'#a93226'};
-    const shadows = {connected:'0 0 7px #2ecc71', connecting:'0 0 7px #e67e22'};
-    fwDot.style.background = colors[state] || '#555';
+    const colors  = {connected:'#45d483', connecting:'#ffb454', error:'#ff7a5c', off:'#ff7a5c'};
+    const shadows = {connected:'0 0 7px #45d483', connecting:'0 0 7px #ffb454'};
+    fwDot.style.background = colors[state] || '#555555';
     fwDot.style.boxShadow  = shadows[state] || 'none';
-    fwStatusText.style.color = colors[state] || '#666';
+    fwStatusText.style.color = colors[state] || '#666666';
     fwStatusText.textContent = text;
 }
 function fwSetProgress(pct, label) {
@@ -1442,7 +1458,7 @@ function fwHandleFile(file) {
     fwCheckReady();
 }
 fwFileInput.addEventListener('change', e => fwHandleFile(e.target.files[0]));
-fwDropzone.addEventListener('dragover',  e => { e.preventDefault(); fwDropzone.style.borderColor='#3498db'; fwDropzone.style.background='rgba(52,152,219,0.05)'; });
+fwDropzone.addEventListener('dragover',  e => { e.preventDefault(); fwDropzone.style.borderColor='#ff5c26'; fwDropzone.style.background='rgba(255,92,38,0.06)'; });
 fwDropzone.addEventListener('dragleave', ()  => { fwDropzone.style.borderColor=''; fwDropzone.style.background=''; });
 fwDropzone.addEventListener('drop', e => {
     e.preventDefault(); fwDropzone.style.borderColor=''; fwDropzone.style.background='';
@@ -1528,7 +1544,7 @@ async function fwDoConnect(isRetry) {
 
         const chipName  = chipLine  ? chipLine.replace(/^Chip is /i,'').trim()  : (fwEspLoader.chip?.CHIP_NAME ?? '—');
         const chipMac   = macLine   ? macLine.replace(/^MAC:\s*/i,'').trim()    : '—';
-        fwChipRow.innerHTML = `<div>Chip: <span style="color:#ccc;">${chipName}</span></div><div>MAC: <span style="color:#ccc;">${chipMac}</span></div>`;
+        fwChipRow.innerHTML = `<div>Chip: <span style="color:#c8c8c8;">${chipName}</span></div><div>MAC: <span style="color:#c8c8c8;">${chipMac}</span></div>`;
         fwChipRow.style.display = 'block';
 
         fwSetStatus('connected', 'Connected');
@@ -1660,4 +1676,4 @@ document.getElementById('progFirmwareBtn').addEventListener('click', async () =>
 document.getElementById('progFirmwareBtn').removeAttribute('onclick');
 </script>
 </body>
-</html> 
+</html>
