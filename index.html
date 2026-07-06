@@ -300,94 +300,56 @@
     </div>
 </div>
 
-<div id="fwWarningModal" class="modal-overlay">
-    <div class="modal-content" style="width:380px; text-align:center;">
-        <div style="font-size:2em; margin-bottom:12px;">⚠️</div>
-        <h3 style="margin:0 0 10px 0; color:var(--accent-orange); text-transform:uppercase; letter-spacing:0.1em; font-size:0.95em;">Disconnect First</h3>
-        <p style="font-size:0.85em; color:#ccc; line-height:1.6; margin-bottom:20px;">
-            You are currently connected to the board via the GUI.<br><br>
-            Click <strong style="color:white;">Disconnect</strong> in the header bar first, then open Update Firmware.
-        </p>
-        <button class="btn btn-grey" style="width:100%; justify-content:center;" onclick="document.getElementById('fwWarningModal').style.display='none'">OK</button>
-    </div>
-</div>
-
 <div id="firmwareModal" class="modal-overlay">
-    <div class="modal-content" style="text-align:left; width:520px; max-width:96vw; padding:20px;">
+    <div class="modal-content" style="text-align:left; width:480px; max-width:96vw; padding:26px;">
 
-        <h3 style="margin:0 0 16px 0; color:var(--accent-blue); text-align:center; text-transform:uppercase; letter-spacing:0.1em; font-size:1em;">Update Firmware</h3>
+        <h3 style="margin:0 0 18px 0; color:#eee; text-align:center; font-size:1.1em; font-weight:600;">Update Firmware</h3>
 
         <!-- STEP 1: Connect -->
-        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:10px; overflow:hidden;">
-            <div class="scroll-header" style="height:38px; padding:0 12px;">
-                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">01</span>
-                <span class="header-main" style="font-size:0.75em;">Connect to Device</span>
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px;">
+            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">1. Connect to device</div>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <div id="fwDot" style="width:7px;height:7px;border-radius:50%;background:var(--accent-red);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></div>
+                <span id="fwStatusText" style="font-size:0.82em; color:#888;">Disconnected</span>
             </div>
-            <div style="padding:12px 14px;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                    <div id="fwDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-red);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></div>
-                    <span id="fwStatusText" style="font-family:monospace; font-size:0.78em; color:#666;">Disconnected</span>
-                </div>
-                <div style="display:flex; gap:8px;">
-                    <button id="fwConnectBtn" class="btn" style="font-size:0.78em; padding:6px 14px;">🔗 Connect</button>
-                    <button id="fwDisconnectBtn" class="btn btn-disconnect" style="font-size:0.78em; padding:6px 14px; display:none;">✕ Disconnect</button>
-                </div>
-                <div id="fwChipRow" style="display:none; margin-top:10px; flex-wrap:wrap; gap:5px;">
-                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">CHIP: <span id="fwChipName" style="color:var(--accent-blue);">—</span></div>
-                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">MAC: <span id="fwChipMac" style="color:var(--accent-blue);">—</span></div>
-                    <div style="font-family:monospace;font-size:0.68em;background:#111;border:1px solid var(--border);border-radius:2px;padding:2px 7px;color:#555;">FLASH: <span id="fwChipFlash" style="color:var(--accent-blue);">—</span></div>
-                </div>
-            </div>
+            <div id="fwChipRow" style="display:none; font-size:0.75em; color:#777; line-height:1.6; margin-bottom:12px;"></div>
+            <button id="fwConnectBtn" class="btn" style="font-size:0.78em; padding:6px 16px;">Connect</button>
         </div>
 
         <!-- STEP 2: File -->
-        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:10px; overflow:hidden;">
-            <div class="scroll-header" style="height:38px; padding:0 12px;">
-                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">02</span>
-                <span class="header-main" style="font-size:0.75em;">Firmware Binary</span>
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px;">
+            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">2. Choose firmware</div>
+            <button id="fwGithubBtn" class="btn" style="width:100%; justify-content:center; font-size:0.82em; padding:10px; font-weight:700;">Get Latest from GitHub</button>
+            <div id="fwFileInfo" style="display:none; margin-top:10px; font-size:0.78em; color:#aaa; align-items:center; gap:8px;">
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="fwFileName">—</span>
+                <span style="color:#666;flex-shrink:0; font-size:0.9em;" id="fwFileSize">—</span>
             </div>
-            <div style="padding:12px 14px;">
-                <div id="fwDropzone" style="border:1px dashed var(--border); border-radius:4px; padding:18px; text-align:center; cursor:pointer; background:var(--bg-color); position:relative; transition:border-color 0.2s, background 0.2s;">
-                    <input type="file" id="fwFileInput" accept=".bin" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
-                    <div style="font-size:1.5em; margin-bottom:4px; opacity:0.3; pointer-events:none;">📂</div>
-                    <div style="font-size:0.78em; color:#555; pointer-events:none;">Drop <strong style="color:var(--accent-blue);">.bin</strong> file here or click to browse</div>
-                </div>
-                <div id="fwFileInfo" style="display:none; margin-top:8px; background:rgba(52,152,219,0.06); border:1px solid rgba(52,152,219,0.18); border-radius:3px; padding:6px 10px; font-family:monospace; font-size:0.75em; color:var(--accent-blue); align-items:center; gap:8px;">
-                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="fwFileName">—</span>
-                    <span style="color:#555;flex-shrink:0;" id="fwFileSize">—</span>
-                </div>
+            <div id="fwDropzone" style="margin-top:10px; text-align:center; cursor:pointer; position:relative; padding:6px; border:1px solid transparent; border-radius:4px; transition:border-color 0.2s, background 0.2s;">
+                <input type="file" id="fwFileInput" accept=".bin" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+                <span style="font-size:0.72em; color:#555; text-decoration:underline; text-decoration-color:#3a3a3a; text-underline-offset:3px;">or choose a .bin file manually</span>
             </div>
         </div>
 
         <!-- STEP 3: Flash -->
-        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; margin-bottom:12px; overflow:hidden;">
-            <div class="scroll-header" style="height:38px; padding:0 12px;">
-                <span style="font-size:0.65em; background:rgba(52,152,219,0.12); border:1px solid rgba(52,152,219,0.3); color:var(--accent-blue); border-radius:2px; padding:1px 6px; margin-right:8px; letter-spacing:0.1em;">03</span>
-                <span class="header-main" style="font-size:0.75em;">Flash</span>
-            </div>
-            <div style="padding:12px 14px;">
-                <div style="display:flex; justify-content:center;"><button id="fwFlashBtn" class="btn" style="font-size:0.82em; padding:7px 28px; background:rgba(46,204,113,0.1)!important; border:1px solid rgba(46,204,113,0.35)!important; color:var(--accent-green)!important; box-shadow:none!important;" disabled>⚡ Flash Device</button></div>
-                <div id="fwProgressWrap" style="display:none; margin-top:12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-family:monospace; font-size:0.7em; color:#555; margin-bottom:4px;">
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <svg id="fwSpinner" viewBox="0 0 24 24" style="display:none; width:11px; height:11px; animation:fwSpin 0.8s linear infinite; flex-shrink:0;"><circle cx="12" cy="12" r="9" fill="none" stroke="#3498db" stroke-width="3" stroke-dasharray="40 20"/></svg>
-                            <span id="fwProgLabel">Writing...</span>
-                        </div>
-                        <span id="fwProgPct">0%</span>
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px;">
+            <div style="font-size:0.8em; font-weight:600; color:#999; margin-bottom:12px;">3. Flash</div>
+            <button id="fwFlashBtn" class="btn" style="width:100%; justify-content:center; font-size:0.85em; padding:10px; background:var(--accent-green)!important; color:#0f1f14!important; font-weight:700;" disabled>Flash Device</button>
+            <div id="fwProgressWrap" style="display:none; margin-top:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72em; color:#888; margin-bottom:5px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <svg id="fwSpinner" viewBox="0 0 24 24" style="display:none; width:11px; height:11px; animation:fwSpin 0.8s linear infinite; flex-shrink:0;"><circle cx="12" cy="12" r="9" fill="none" stroke="#666" stroke-width="3" stroke-dasharray="40 20"/></svg>
+                        <span id="fwProgLabel">Writing...</span>
                     </div>
-                    <div style="height:5px; background:#111; border:1px solid var(--border); border-radius:99px; overflow:hidden;">
-                        <div id="fwProgBar" style="height:100%; width:0%; background:linear-gradient(90deg,var(--accent-blue),var(--accent-green)); border-radius:99px; transition:width 0.2s;"></div>
-                    </div>
+                    <span id="fwProgPct">0%</span>
+                </div>
+                <div style="height:6px; background:rgba(255,255,255,0.05); border-radius:99px; overflow:hidden;">
+                    <div id="fwProgBar" style="height:100%; width:0%; background:var(--accent-blue); border-radius:99px; transition:width 0.2s;"></div>
                 </div>
             </div>
+            <div id="fwLog" style="margin-top:16px; font-family:monospace; font-size:0.72em; height:100px; overflow-y:auto; color:#666; line-height:1.7; scrollbar-width:thin; scrollbar-color:#333 transparent; display:flex; flex-direction:column; gap:0;"></div>
         </div>
 
-        <!-- Log -->
-        <div id="fwLog" style="background:#0a0a0a; border:1px solid var(--border); border-radius:4px; padding:8px 10px; font-family:monospace; font-size:0.72em; height:110px; overflow-y:auto; color:#3a5a6a; margin-bottom:12px; line-height:1.7; scrollbar-width:thin; scrollbar-color:#333 transparent; display:flex; flex-direction:column; gap:0;"></div>
-
-        <div style="display:flex; gap:8px;">
-            <button class="btn btn-grey" id="fwCloseBtn" style="flex:1; justify-content:center; font-size:0.82em;">Close</button>
-        </div>
+        <button class="btn btn-grey" id="fwCloseBtn" style="width:100%; justify-content:center; font-size:0.82em;">Close</button>
     </div>
 </div>
 
@@ -492,9 +454,9 @@
 </div>
 
 <footer>
-    <div class="logo-container">
+    <a href="https://thingsbyjosh.com" target="_blank" rel="noopener noreferrer" class="logo-container" style="text-decoration:none; cursor:pointer;">
         <img src="img/footer.png" alt="Company Logo" onerror="this.style.display='none';">
-    </div>
+    </a>
     <div class="status-container">
         <div id="statusLed" class="led-circle led-offline"></div>
         <div style="font-size: 0.7em; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -998,19 +960,36 @@
         setTimeout(() => toast.classList.remove('show'), 4000);
     }
 
+    let disconnecting = false;
     async function handleDisconnect(reason, silent) {
+        if (disconnecting) return; // avoid overlapping teardown racing on port/reader
         if (!keepReading && !port) return; // already disconnected
-        keepReading = false;
-        window.guiConnected = false;
-        foundNodes.clear();
-        pendingAutoSelect = false;
-        clearTimeout(autoSelectTimer);
-        if (reader) { try { await reader.cancel(); } catch(_) {} reader = null; }
-        if (port) { try { await port.close(); } catch(_) {} port = null; }
-        refreshSystemStatus();
-        if (!silent) showDisconnectToast();
-        console.warn('Serial disconnected:', reason);
+        disconnecting = true;
+        try {
+            keepReading = false;
+            window.guiConnected = false;
+            foundNodes.clear();
+            pendingAutoSelect = false;
+            clearTimeout(autoSelectTimer);
+            if (reader) {
+                try { await reader.cancel(); } catch(_) {}
+                try { reader.releaseLock(); } catch(_) {}
+                reader = null;
+            }
+            if (port) { try { await port.close(); } catch(_) {} port = null; }
+            refreshSystemStatus();
+            if (!silent) showDisconnectToast();
+            console.warn('Serial disconnected:', reason);
+        } finally {
+            disconnecting = false;
+        }
     }
+
+    // Let the firmware flasher (separate module script) grab the already-granted
+    // port and release the main GUI's hold on it, without a second device picker
+    // dialog or asking the person to manually hit Disconnect first.
+    window.getMainPort = () => port;
+    window.disconnectMainGui = (reason) => handleDisconnect(reason, true);
 
     // GUI read loop
     async function guiReadLoop() {
@@ -1021,8 +1000,10 @@
                 while (keepReading) {
                     const { value, done } = await reader.read();
                     if (done) {
-                        // Stream closed — port was unplugged
-                        handleDisconnect('stream closed');
+                        // Stream closed. Only treat this as a surprise (USB unplugged) if we
+                        // didn't just ask for this ourselves -- otherwise this races with the
+                        // handleDisconnect() call already in progress that caused the cancel.
+                        if (keepReading) handleDisconnect('stream closed');
                         return;
                     }
                     buffer += new TextDecoder().decode(value);
@@ -1050,10 +1031,11 @@
         }
     });
 
-    document.getElementById('connectBtn').onclick = async () => {
-        if (port) { handleDisconnect('manual disconnect', true); return; }
+    // Opens the main GUI connection. Reuses an existing SerialPort object when given one
+    // (e.g. handing control back from the firmware flasher) instead of prompting again.
+    async function connectMainGui(existingPort) {
         try {
-            port = await navigator.serial.requestPort();
+            port = existingPort || await navigator.serial.requestPort();
             await port.open({ baudRate: 115200 });
             keepReading = true;
             window.guiConnected = true;
@@ -1061,6 +1043,7 @@
             refreshSystemStatus();
             setTimeout(triggerGlobalRefresh, 500);
             guiReadLoop();
+            return true;
         } catch(e) {
             console.error('Serial connect failed:', e);
             port = null;
@@ -1069,7 +1052,14 @@
             pendingAutoSelect = false;
             refreshSystemStatus();
             showDisconnectToast(`<strong>Connect Failed</strong> - ${e.message || 'could not open port'}. Close Serial Monitor / other tabs using this port and try again.`);
+            return false;
         }
+    }
+    window.reconnectMainGui = (existingPort) => connectMainGui(existingPort);
+
+    document.getElementById('connectBtn').onclick = () => {
+        if (port) { handleDisconnect('manual disconnect', true); return; }
+        connectMainGui();
     };
 
     // FIXED: Target node logic updates UI and maintains telemetry checkboxes
@@ -1370,11 +1360,11 @@ import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@0.5.7/bundle.
 const fwDot           = document.getElementById('fwDot');
 const fwStatusText    = document.getElementById('fwStatusText');
 const fwConnectBtn    = document.getElementById('fwConnectBtn');
-const fwDisconnectBtn = document.getElementById('fwDisconnectBtn');
 const fwFlashBtn      = document.getElementById('fwFlashBtn');
 const fwFileInput     = document.getElementById('fwFileInput');
 const fwDropzone      = document.getElementById('fwDropzone');
 const fwFileInfo      = document.getElementById('fwFileInfo');
+const fwGithubBtn     = document.getElementById('fwGithubBtn');
 const fwFileName      = document.getElementById('fwFileName');
 const fwFileSize      = document.getElementById('fwFileSize');
 const fwChipRow       = document.getElementById('fwChipRow');
@@ -1389,6 +1379,8 @@ let fwTransport  = null;
 let fwEspLoader  = null;
 let fwFile       = null;
 let fwTermLines  = [];
+let fwPrefilledPort = null; // port captured from the main GUI connection, reused to skip a second device picker
+let fwActivePort = null; // port currently held by the flasher, handed back to the main GUI on close
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function fwFmt(bytes) {
@@ -1430,12 +1422,11 @@ function fwResetUI() {
     fwSpinner.style.display  = 'none';
     fwChipRow.style.display  = 'none';
     fwConnectBtn.style.display    = 'flex';
-    fwDisconnectBtn.style.display = 'none';
     fwFlashBtn.disabled           = true;
-    document.getElementById('fwCloseBtn').textContent = 'Close';
-    document.getElementById('fwCloseBtn').textContent = 'Close';
     fwFileInfo.style.display = 'none';
-    fwFile = null; fwTransport = null; fwEspLoader = null; fwTermLines = [];
+    fwGithubBtn.disabled = false;
+    fwGithubBtn.textContent = 'Get Latest Firmware from GitHub';
+    fwFile = null; fwTransport = null; fwEspLoader = null; fwTermLines = []; fwActivePort = null;
     fwSetStatus('off', 'Disconnected');
 }
 
@@ -1458,13 +1449,67 @@ fwDropzone.addEventListener('drop', e => {
     fwHandleFile(e.dataTransfer.files[0]);
 });
 
-// ── connect — fresh requestPort() every time ──────────────────────────────
-fwConnectBtn.addEventListener('click', async () => {
+// ── fetch firmware .bin directly from GitHub ────────────────────────────────
+const FW_GITHUB_API = 'https://api.github.com/repos/joshr120/CANBUS-Stepper/contents/Software/Node%20Software';
+
+async function fwFetchFromGithub() {
+    fwGithubBtn.disabled = true;
+    const originalLabel = fwGithubBtn.textContent;
+    fwGithubBtn.textContent = 'Checking GitHub...';
+    fwAppendLog('Checking GitHub for firmware...', 'data');
+    try {
+        const listRes = await fetch(FW_GITHUB_API);
+        if (!listRes.ok) throw new Error(`GitHub API returned ${listRes.status}`);
+        const entries = await listRes.json();
+        const bins = entries.filter(f => f.type === 'file' && f.name.toLowerCase().endsWith('.bin'));
+        if (bins.length === 0) throw new Error('No .bin files found in that GitHub folder');
+
+        let chosen = bins[0];
+        if (bins.length > 1) {
+            // More than one firmware build available -- ask which one to use.
+            // Sorted so the most recently-named build (usually highest version) shows first.
+            bins.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }));
+            const names = bins.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+            const pick = prompt(`Multiple firmware files found on GitHub:\n${names}\n\nEnter the number to flash:`, '1');
+            const idx = parseInt(pick) - 1;
+            if (isNaN(idx) || !bins[idx]) { fwAppendLog('Cancelled - no firmware selected.', 'warn'); return; }
+            chosen = bins[idx];
+        }
+
+        fwGithubBtn.textContent = `Downloading ${chosen.name}...`;
+        fwAppendLog(`Downloading ${chosen.name} (${fwFmt(chosen.size)})...`, 'data');
+        const binRes = await fetch(chosen.download_url);
+        if (!binRes.ok) throw new Error(`Download failed (${binRes.status})`);
+        const blob = await binRes.blob();
+        const file = new File([blob], chosen.name, { type: 'application/octet-stream' });
+        fwHandleFile(file);
+        fwAppendLog(`Loaded ${chosen.name} from GitHub`, 'ok');
+    } catch (err) {
+        fwAppendLog('GitHub fetch failed: ' + err.message, 'err');
+    } finally {
+        fwGithubBtn.disabled = false;
+        fwGithubBtn.textContent = originalLabel;
+    }
+}
+
+fwGithubBtn.addEventListener('click', fwFetchFromGithub);
+
+// ── connect — reuses the main GUI's port when available, otherwise prompts ──
+async function fwDoConnect(isRetry) {
     fwLog.innerHTML = '';
     fwTermLines = [];
-    fwSetStatus('connecting', 'Waiting for port selection...');
     try {
-        const rawPort = await navigator.serial.requestPort();
+        let rawPort;
+        if (fwPrefilledPort) {
+            // Reuse the exact port the main GUI was just using -- no second picker needed
+            rawPort = fwPrefilledPort;
+            fwPrefilledPort = null; // one-shot; a later manual reconnect asks normally
+            fwSetStatus('connecting', 'Connecting...');
+        } else {
+            fwSetStatus('connecting', 'Waiting for port selection...');
+            rawPort = await navigator.serial.requestPort();
+        }
+        fwActivePort = rawPort;
         fwTransport = new Transport(rawPort, true);
         fwSetStatus('connecting', 'Connecting...');
         fwAppendLog('Connecting to device...', 'data');
@@ -1480,50 +1525,44 @@ fwConnectBtn.addEventListener('click', async () => {
 
         const chipLine  = fwTermLines.find(l => /^Chip is /i.test(l));
         const macLine   = fwTermLines.find(l => /^MAC:/i.test(l));
-        const flashLine = fwTermLines.find(l => /embedded flash/i.test(l) || /flash \d/i.test(l));
 
-        document.getElementById('fwChipName').textContent  = chipLine  ? chipLine.replace(/^Chip is /i,'').trim()  : (fwEspLoader.chip?.CHIP_NAME ?? '—');
-        document.getElementById('fwChipMac').textContent   = macLine   ? macLine.replace(/^MAC:\s*/i,'').trim()    : '—';
-        document.getElementById('fwChipFlash').textContent = flashLine ? flashLine.trim() : '—';
-        fwChipRow.style.display = 'flex';
+        const chipName  = chipLine  ? chipLine.replace(/^Chip is /i,'').trim()  : (fwEspLoader.chip?.CHIP_NAME ?? '—');
+        const chipMac   = macLine   ? macLine.replace(/^MAC:\s*/i,'').trim()    : '—';
+        fwChipRow.innerHTML = `<div>Chip: <span style="color:#ccc;">${chipName}</span></div><div>MAC: <span style="color:#ccc;">${chipMac}</span></div>`;
+        fwChipRow.style.display = 'block';
 
         fwSetStatus('connected', 'Connected');
         fwAppendLog('Ready to flash.', 'ok');
         fwConnectBtn.style.display    = 'none';
-        fwDisconnectBtn.style.display = 'flex';
-        document.getElementById('fwCloseBtn').textContent = 'Disconnect & Close';
         fwCheckReady();
 
     } catch(err) {
+        if (fwTransport) { try { await fwTransport.disconnect(); } catch(_) {} }
+        fwTransport = null; fwEspLoader = null; fwActivePort = null;
+
+        if (!isRetry) {
+            // Reusing the carried-over port didn't work (OS hadn't fully released it, etc.) --
+            // fall back to a normal manual connect instead of leaving the person stuck.
+            fwAppendLog('Could not reuse the previous port (' + err.message + '). Please pick the port manually.', 'warn');
+            fwSetStatus('off', 'Disconnected');
+            fwConnectBtn.style.display    = 'flex';
+            fwCheckReady();
+            return;
+        }
+
         fwSetStatus('error', 'Connection failed');
         fwAppendLog('Error: ' + err.message, 'err');
-        if (fwTransport) { try { await fwTransport.disconnect(); } catch(_) {} }
-        fwTransport = null; fwEspLoader = null;
         fwConnectBtn.style.display    = 'flex';
-        fwDisconnectBtn.style.display = 'none';
         fwCheckReady();
     }
-});
-
-// ── disconnect ────────────────────────────────────────────────────────────
-fwDisconnectBtn.addEventListener('click', async () => {
-    if (fwTransport) { try { await fwTransport.disconnect(); } catch(_) {} }
-    fwTransport = null; fwEspLoader = null;
-    fwSetStatus('off', 'Disconnected');
-    fwChipRow.style.display  = 'none';
-    fwConnectBtn.style.display    = 'flex';
-    fwDisconnectBtn.style.display = 'none';
-    fwFlashBtn.disabled           = true;
-    document.getElementById('fwCloseBtn').textContent = 'Close';
-    fwAppendLog('Disconnected.', 'warn');
-});
+}
+fwConnectBtn.addEventListener('click', () => fwDoConnect(true));
 
 // ── flash ─────────────────────────────────────────────────────────────────
 fwFlashBtn.addEventListener('click', async () => {
     if (!fwEspLoader || !fwFile) return;
 
     fwFlashBtn.disabled      = true;
-    fwDisconnectBtn.disabled = true;
 
     // Show spinner from the very start of flashing
     fwSpinner.style.display = 'block';
@@ -1579,30 +1618,44 @@ fwFlashBtn.addEventListener('click', async () => {
         fwSetStatus('error', 'Flash failed');
     } finally {
         fwFlashBtn.disabled      = false;
-        fwDisconnectBtn.disabled = false;
     }
 });
 
-// ── close button — disconnect esptool then reload GUI serial ──────────────
+// ── close button — disconnect esptool, then hand the port back to the main GUI ──
 document.getElementById('fwCloseBtn').addEventListener('click', async () => {
+    const portToHandBack = fwActivePort;
     if (fwTransport) {
         try { await fwTransport.disconnect(); } catch(_) {}
         fwTransport = null; fwEspLoader = null;
     }
     document.getElementById('firmwareModal').style.display = 'none';
     fwResetUI();
+    if (portToHandBack && window.reconnectMainGui) {
+        await new Promise(r => setTimeout(r, 250)); // let the OS release the port first
+        await window.reconnectMainGui(portToHandBack);
+    }
 });
 
 // ── modal open ────────────────────────────────────────────────────────────
-document.getElementById('progFirmwareBtn').addEventListener('click', () => {
-    if (window.guiConnected) {
-        document.getElementById('fwWarningModal').style.display = 'flex';
-        return;
-    }
+document.getElementById('progFirmwareBtn').addEventListener('click', async () => {
     fwResetUI();
-    fwAppendLog('Select your device port and a .bin file to flash.', 'data');
-    fwAppendLog('Hold BOOT button on connect if auto-reset fails.', 'warn');
-    document.getElementById('firmwareModal').style.display = 'flex';
+    let carriedOverPort = false;
+    if (window.guiConnected) {
+        fwPrefilledPort = window.getMainPort ? window.getMainPort() : null;
+        carriedOverPort = !!fwPrefilledPort;
+        fwAppendLog('Releasing the main GUI connection to free the port...', 'data');
+        await window.disconnectMainGui('switching to firmware update');
+        await new Promise(r => setTimeout(r, 250)); // let the OS fully release the port handle
+    }
+    if (carriedOverPort) {
+        fwAppendLog('Reusing the same port -- no need to reselect it.', 'ok');
+        document.getElementById('firmwareModal').style.display = 'flex';
+        fwDoConnect();
+    } else {
+        fwAppendLog('Select your device port and a .bin file to flash.', 'data');
+        fwAppendLog('Hold BOOT button on connect if auto-reset fails.', 'warn');
+        document.getElementById('firmwareModal').style.display = 'flex';
+    }
 });
 document.getElementById('progFirmwareBtn').removeAttribute('onclick');
 </script>
