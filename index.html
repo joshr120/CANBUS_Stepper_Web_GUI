@@ -12,7 +12,7 @@
         :root {
             --bg-color: #121212; --header-bg: #1a1a1a; --card-bg: #171717;
             --accent-blue: #ff5c26; --accent-green: #45d483; --accent-red: #d94a33; --text-color: #ededed;
-            --border: #2a2a2a; --stale-color: #383838;
+            --border: #2a2a2a; --stale-color: #474747;
             --accent-orange: #ffb454;
             --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
             --grad-orange: linear-gradient(135deg, #ff7433 0%, #f2500f 100%);
@@ -175,6 +175,8 @@
         .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a3a3; }
         .data-value { color: #e8e8e6; width: 140px; text-align: right; font-weight: bold; transition: color 0.4s ease; }
         .data-value.stale { color: var(--stale-color); }
+        @keyframes rtr-poll { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+        .data-value.rtr-polling { animation: rtr-poll 0.6s ease-in-out infinite; color: var(--accent-blue) !important; }
         .inline-edit { background: #222222; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: var(--mono); border-radius: 4px; }
         .inline-hint { position: absolute; right: 0; top: 100%; margin-top: 4px; background: #1e1e1e; border: 1px solid rgba(255,92,38,0.5); border-radius: 8px; padding: 7px 10px; font-size: 0.72em; color: #a3a3a3; white-space: pre; line-height: 1.6; z-index: 100; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .inline-hint strong { color: #dddddd; display: block; margin-bottom: 2px; }
@@ -775,17 +777,16 @@
         const parts = line.split(" "); 
         if (parts.length < 3) return;
         const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
+        // DEBUG: log all incoming frames so we can see NOP replies
         const config = CAN_FORMATS[mid] || TELEMETRY_FIELDS[mid];
         if (!config) return;  // ignore unknown message IDs entirely
         // Only register a node as discovered from known telemetry frames (unsolicited broadcasts)
         // This prevents spurious node detection from unexpected CAN IDs at startup
-        if (nid > 0 && TELEMETRY_FIELDS[mid]) {
+        // Also accept NOP replies (mid === 0) from our periodic probe scan
+        if (nid > 0 && (TELEMETRY_FIELDS[mid] || mid === 0)) {
             const isNewNode = !foundNodes.has(nid);
             foundNodes.set(nid, Date.now());
             refreshSystemStatus();
-            // Only (re)start the debounce on a genuinely new node ID -- otherwise a node's
-            // own continuous periodic telemetry (e.g. angle at 10Hz) keeps resetting the
-            // timer forever and the auto-select never gets a chance to fire.
             if (pendingAutoSelect && isNewNode) scheduleAutoSelect();
         }
         try {
@@ -871,7 +872,7 @@
                 if (mid === '26') { openAuxModal(); return; }
                 if (mid === '9') { openLedModal(); return; }
                 if (row.dataset.type === 'config' && CAN_FORMATS[mid][1]) startInlineEdit(mid, valSpan);
-                else requestRtr(mid);
+                else requestRtr(mid, valSpan);
             });
         });
         updatePreview();
@@ -914,7 +915,20 @@
 
     async function triggerGlobalRefresh() { for (let mid in CAN_FORMATS) { if (CAN_FORMATS[mid][1]) { requestRtr(mid); await new Promise(r => setTimeout(r, 40)); } } }
     async function sendRaw(str) { if (port?.writable) { const w = port.writable.getWriter(); await w.write(new TextEncoder().encode(str + "\n")); w.releaseLock(); } }
-    function requestRtr(mid) { const nid = document.getElementById('nodeIdSelect').value, canId = (nid << 6) | (mid & 0x3F); sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`); }
+    function requestRtr(mid, valSpan) {
+        const nid = document.getElementById('nodeIdSelect').value, canId = (nid << 6) | (mid & 0x3F);
+        sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`);
+        if (valSpan) {
+            valSpan.classList.add('rtr-polling');
+            const prev = valSpan.innerText;
+            valSpan.innerText = 'RTR...';
+            // Stop animation once a reply arrives (parseLine will update innerText), or after 2s timeout
+            const stop = () => { valSpan.classList.remove('rtr-polling'); };
+            const observer = new MutationObserver(() => { if (valSpan.innerText !== 'RTR...') { stop(); observer.disconnect(); clearTimeout(timer); } });
+            observer.observe(valSpan, { childList: true, characterData: true, subtree: true });
+            const timer = setTimeout(() => { observer.disconnect(); stop(); valSpan.innerText = prev; }, 2000);
+        }
+    }
     function handleWatchdog(mid) { 
         const el = document.getElementById(`val-${mid}`); if(!el) return;
         if (telemetryWatchdogs[mid]) clearTimeout(telemetryWatchdogs[mid]);
@@ -934,6 +948,14 @@
         let changed = false;
         for (const [nid, lastSeen] of foundNodes.entries()) { if (now - lastSeen > 5000) { foundNodes.delete(nid); changed = true; } }
         if (changed) { refreshSystemStatus(); if (document.getElementById('nodeModal').style.display === 'flex') { showNodeSelector(); } }
+    }, 1000);
+
+    // Broadcast NOP RTR — NodeID 0 is the broadcast address, so a single RTR on CAN ID 0x00
+    // (NodeID=0, MsgType=0) causes ALL nodes to reply with their own NOP frame (same MsgType,
+    // their own NodeID). parseLine picks these up and refreshes foundNodes, keeping nodes alive
+    // even when periodic telemetry is disabled. Sent once per second.
+    setInterval(() => {
+        if (keepReading) sendRaw(`00 1 0000000000000000`);
     }, 1000);
 
     function showNodeSelector() {
