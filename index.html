@@ -175,6 +175,10 @@
         .data-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a3a3; }
         .data-value { color: #e8e8e6; width: 140px; text-align: right; font-weight: bold; transition: color 0.4s ease; }
         .data-value.stale { color: var(--stale-color); }
+        #val-39 { width: 300px; }
+        .fault-line { display: block; white-space: nowrap; text-align: right; font-weight: normal; }
+        .fault-line.fault-warn { color: var(--accent-orange); }
+        .fault-line.fault-err { color: var(--accent-red); }
         @keyframes rtr-poll { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
         .data-value.rtr-polling { animation: rtr-poll 0.6s ease-in-out infinite; color: var(--accent-blue) !important; }
         .inline-edit { background: #222222; color: #fff; border: 1px solid var(--accent-blue); width: 130px; text-align: right; padding: 2px 4px; font-family: var(--mono); border-radius: 4px; }
@@ -495,7 +499,9 @@
         13: ["Closed Loop Type (0/1)", 'Uint16'], 14: ["Standstill Mode", 'Uint16'], 15: ["Map Direction (0/1)", 'Uint8'],
         16: ["Position Speed", 'Float32'], 17: ["Acceleration", 'Float32'], 18: ["Deceleration", 'Float32'],
         19: ["Report Frequency (f1,f2)", 'Special19'], 20: ["Boot Enable (0/1)", 'Uint8'], 21: ["3V3 LED Disable", 'Uint8'],
-        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["AUX Connector", 'Special26']
+        22: ["Incremental Move (deg)", 'Float32'],
+        23: ["Reset to Default", null], 24: ["Save Config", null], 25: ["Set Node ID", 'Uint16'], 26: ["AUX Connector", 'Special26'],
+        27: ["Set Hold Current (%)", 'Uint16']
     };
 
     const TELEMETRY_FIELDS = {
@@ -504,6 +510,21 @@
         38: ["Board Temp (°C)", 'Float32'], 39: ["Fault Code", 'Uint16'], 40: ["FW Version", 'Float32'],
         41: ["ESP32 Temp (°C)", 'Float32'], 42: ["Current Vel (deg/s)", 'Float32']
     };
+
+    // Bit definitions for MsgType 39 (Fault Code), per CAN Protocol.md "Fault Codes" table
+    const FAULT_NAMES = {
+        0: "PCB Over-Temp Warning",
+        1: "PCB Over-Temp Shutdown",
+        2: "Driver Over-Temp Warning",
+        3: "Driver Over-Temp Shutdown",
+        4: "Short to Ground, Phase A",
+        5: "Short to Ground, Phase B",
+        6: "Low-Side Short, Phase A",
+        7: "Low-Side Short, Phase B",
+        8: "Charge Pump Undervoltage"
+    };
+    // Bits that are warnings (non-stopping) rather than hard faults -- rendered orange instead of red
+    const FAULT_WARNING_BITS = new Set([0, 2]);
 
     let port, reader, keepReading = false, isFrozen = false;
     let foundNodes = new Map();
@@ -832,7 +853,20 @@
             }
             if (nid == document.getElementById('nodeIdSelect').value) {
                 const el = document.getElementById(`val-${mid}`);
-                if (el && !el.querySelector('input')) { el.innerText = displayVal; handleWatchdog(mid); }
+                if (el && !el.querySelector('input')) {
+                    if (mid === 39) {
+                        const activeFaults = [];
+                        for (let bit = 0; bit <= 8; bit++) { if (val & (1 << bit)) activeFaults.push(bit); }
+                        let html = `${displayVal}`;
+                        if (activeFaults.length) {
+                            html += activeFaults.map(bit => `<span class="fault-line ${FAULT_WARNING_BITS.has(bit) ? 'fault-warn' : 'fault-err'}">${FAULT_NAMES[bit]}</span>`).join('');
+                        }
+                        el.innerHTML = html;
+                    } else {
+                        el.innerText = displayVal;
+                    }
+                    handleWatchdog(mid);
+                }
             }
             const ds = chart.data.datasets.find(d => d.key === `${nid}-${mid}`);
             if (ds) {
