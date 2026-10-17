@@ -127,7 +127,10 @@
         .btn:hover { filter: brightness(1.12); }
         .btn-send { background: var(--grad-orange); }
         .btn-disconnect { background: var(--accent-red) !important; box-shadow: none !important; animation: none !important; }
-        .btn-disconnect:disabled { opacity: 0.35; filter: grayscale(60%); cursor: not-allowed; }
+        .btn:disabled { opacity: 0.35; filter: grayscale(60%); cursor: not-allowed; }
+        .modal-input { background:#1f1f1f; color:#ededed; border:1px solid #383838; padding:8px 10px; border-radius:6px; font-family:var(--mono); font-size:0.85em; width:100%; box-sizing:border-box; }
+        .modal-input:focus { outline:none; border-color: var(--accent-blue); }
+        .modal-input:disabled { opacity:0.4; cursor:not-allowed; }
 
         .btn-refresh-small {
             background: #222222;
@@ -190,7 +193,7 @@
         .graph-controls { position: absolute; top: 15px; right: 20px; z-index: 10; display: flex; align-items: center; gap: 10px; font-size: 0.85em; background: rgba(12,11,9,0.85); padding: 6px 12px; border-radius: 8px; border: 1px solid #2e2e2e; }
         .graph-controls label { font-family: var(--mono); font-size: 0.85em; }
 
-        #progFirmwareBtn { height: 32px; padding: 0 15px; font-size: 0.72em; display: flex; align-items: center; letter-spacing: 0.06em; }
+        #progFirmwareBtn, #progWifiBtn { height: 32px; padding: 0 15px; font-size: 0.72em; display: flex; align-items: center; letter-spacing: 0.06em; }
         @keyframes fwSpin { to { transform: rotate(360deg); } }
 
         a { color: var(--accent-blue); text-decoration: none; }
@@ -329,7 +332,7 @@
 
         <!-- STEP 1: Connect -->
         <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px;">
-            <div style="font-size:0.8em; font-weight:600; color:#949494; margin-bottom:12px;">1. Connect to CANBUS Stepper board</div>
+            <div style="font-size:0.8em; font-weight:600; color:#949494; margin-bottom:12px;">1. Connect via USB to CANBUS Stepper board</div>
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                 <div id="fwDot" style="width:7px;height:7px;border-radius:50%;background:var(--accent-red);flex-shrink:0;transition:background 0.3s,box-shadow 0.3s;"></div>
                 <span id="fwStatusText" style="font-size:0.82em; color:#8a8a8a;">Disconnected</span>
@@ -375,16 +378,72 @@
     </div>
 </div>
 
+<div id="wifiConnectModal" class="modal-overlay">
+    <div class="modal-content" style="width: 360px; text-align:left;">
+        <h3 style="margin:0 0 8px 0; color:var(--accent-blue); text-align:center;">Connect via WiFi</h3>
+        <div style="font-size:0.75em; color:#8a8a8a; text-align:center; margin-bottom:15px; line-height:1.5;">First connect via USB to configure network information for the node.</div>
+        <label style="font-size:0.75em; color:#8a8a8a; text-transform:uppercase; letter-spacing:0.5px;">IP Address or Hostname</label>
+        <input type="text" id="wifiConnectHost" class="modal-input" placeholder="canbus-stepper-1.local or 192.168.1.42" style="margin-top:6px;">
+        <div style="display:flex; gap:10px; margin-top:18px;">
+            <button class="btn btn-grey" id="wifiConnectCancelBtn" style="flex:1; justify-content:center;">Cancel</button>
+            <button class="btn btn-send" id="wifiConnectGoBtn" style="flex:1; justify-content:center;">Connect</button>
+        </div>
+    </div>
+</div>
+
+<div id="wifiConfigModal" class="modal-overlay">
+    <div class="modal-content" style="width: 400px; text-align:left;">
+        <h3 style="margin:0 0 18px 0; color:#ece7e1; text-align:center; font-size:1.1em; font-weight:600;">Configure WiFi</h3>
+
+        <div id="wifiUsbRequiredBanner" style="display:none; background:#2a1f10; border:1px solid var(--accent-orange); border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:0.78em; color:#e8c389; line-height:1.5; align-items:flex-start; gap:8px;">
+            <span style="font-size:1.1em; line-height:1.3; flex-shrink:0;">⚠</span>
+            <span>Connect via USB to configure network information.</span>
+        </div>
+        <div id="wifiUsbRequiredNotice" style="display:none; font-size:0.75em; color:#8a8a8a; margin-bottom:14px;">Network changes need to be made over USB connection.</div>
+
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+            <div id="wifiStatusDot" style="width:9px;height:9px;border-radius:50%;background:var(--stale-color);flex-shrink:0;"></div>
+            <span id="wifiConfigStatusText" style="font-size:0.82em; color:#8a8a8a; flex:1;">Not Configured</span>
+            <button id="wifiRefreshStatusBtn" class="btn btn-grey" style="padding:4px 10px; font-size:0.72em;" title="Refresh status">⟳</button>
+        </div>
+
+        <div style="background:#1f1f1f; border:1px solid #383838; border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:0.8em; color:#a3a3a3; line-height:1.9;">
+            <div>Hostname: <span id="wifiHostnameDisplay" style="color:#ededed; font-family:var(--mono);">—</span></div>
+            <div>IP Address: <span id="wifiIpDisplay" style="color:#ededed; font-family:var(--mono);">—</span></div>
+        </div>
+
+        <label style="cursor:pointer; color:#ededed; display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:0.85em;">
+            <input type="checkbox" id="wifiEnabledCheck"> Enable WiFi / WebSocket control for this node
+        </label>
+
+        <label style="font-size:0.75em; color:#8a8a8a; text-transform:uppercase; letter-spacing:0.5px;">Network Name (SSID)</label>
+        <input type="text" id="wifiSsidInput" class="modal-input" maxlength="32" placeholder="MyHomeNetwork" style="margin-top:6px; margin-bottom:12px;">
+
+        <label style="font-size:0.75em; color:#8a8a8a; text-transform:uppercase; letter-spacing:0.5px;">Password</label>
+        <div style="position:relative; margin-top:6px;">
+            <input type="password" id="wifiPasswordInput" class="modal-input" maxlength="63" placeholder="Leave blank to keep current" style="padding-right:54px;">
+            <button type="button" id="wifiPasswordToggle" class="btn btn-grey" style="position:absolute; right:4px; top:50%; transform:translateY(-50%); padding:3px 8px; font-size:0.68em;">Show</button>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:18px;">
+            <button class="btn btn-grey" id="wifiConfigCloseBtn" style="flex:1; justify-content:center;">Close</button>
+            <button class="btn btn-send" id="wifiSaveBtn" style="flex:1; justify-content:center;">Save</button>
+        </div>
+    </div>
+</div>
+
 <header>
     <div class="header-left">
         <div class="hamburger" id="hamBtn">☰</div>
         <button id="connectBtn" class="btn glow-active">
             <span id="connIcon" style="font-size: 1.2em;">→</span>
-            <span id="connText">Connect Serial</span>
+            <span id="connText">Connect via USB</span>
         </button>
+        <button id="connectWifiBtn" class="btn btn-grey">Connect via WiFi</button>
         <div style="border-left: 1px solid #383838; padding-left: 15px;">
             <span style="color:#8a8a8a; font-size:0.8em;">TARGET NODE</span>
             <input type="number" id="nodeIdSelect" value="1" min="0" max="31" style="width: 45px;">
+            <span id="nodeIdAllBadge" style="display:none; color:#8a8a8a; font-size:0.8em; margin-left:4px;">(all)</span>
         </div>
     </div>
     <div class="header-spacer"></div>
@@ -392,7 +451,7 @@
         <select id="cmdType"></select>
         <input type="text" id="cmdValue" placeholder="Value" style="width: 80px;">
         <div class="preview-box" id="previewStr">-- -- ----------------</div>
-        <button id="sendBtn" class="btn btn-send">Send</button>
+        <button id="sendBtn" class="btn btn-send" disabled>Send</button>
     </div>
 </header>
 
@@ -486,6 +545,7 @@
             <span id="nodeCounter" title="Click to view discovered nodes"></span>
         </div>
         <button id="progFirmwareBtn" class="btn btn-grey">UPDATE FIRMWARE</button>
+        <button id="progWifiBtn" class="btn btn-grey">CONFIGURE WIFI</button>
     </div>
 </footer>
 
@@ -527,7 +587,9 @@
     const FAULT_WARNING_BITS = new Set([0, 2]);
 
     let port, reader, keepReading = false, isFrozen = false;
+    let wsSocket = null, connType = null; // connType: 'usb' | 'wifi' | null
     let foundNodes = new Map();
+    let nodeFwVersion = new Map(); // nid -> last-seen firmware version (MsgType 40), used to gate CONFIGURE WIFI
     let pendingAutoSelect = false, autoSelectTimer = null;
     const startTime = Date.now(), telemetryWatchdogs = {};
     let timeWindowSeconds = 30;
@@ -736,18 +798,28 @@
         const indicator = document.getElementById('statusIndicator'), counter = document.getElementById('nodeCounter');
         const led = document.getElementById('statusLed'), overlay = document.getElementById('connectionOverlay');
         const connectBtn = document.getElementById('connectBtn'), connIcon = document.getElementById('connIcon'), connText = document.getElementById('connText');
+        const wifiBtn = document.getElementById('connectWifiBtn');
+        document.getElementById('sendBtn').disabled = !keepReading; // manual CAN builder -- needs a live connection either way
         if (!keepReading) {
             indicator.innerText = "Offline"; indicator.style.color = "var(--accent-red)";
             counter.innerText = ""; led.className = 'led-circle led-offline';
             overlay.style.display = 'flex'; connectBtn.classList.add('glow-active');
-            connectBtn.classList.remove('btn-disconnect');
-            connIcon.innerText = "→"; connText.innerText = "Connect Serial";
+            connectBtn.classList.remove('btn-disconnect'); connectBtn.disabled = false;
+            connIcon.innerText = "→"; connText.innerText = "Connect via USB";
+            wifiBtn.disabled = false; wifiBtn.innerText = "Connect via WiFi"; wifiBtn.classList.remove('btn-disconnect');
             return;
         }
         overlay.style.display = 'none';
-        connectBtn.classList.remove('glow-active');
-        connectBtn.classList.add('btn-disconnect');
-        connIcon.innerText = "✕"; connText.innerText = "Disconnect";
+        if (connType === 'wifi') {
+            // USB connect button is disabled while a WiFi session owns the link -- one transport at a time
+            connectBtn.classList.remove('glow-active', 'btn-disconnect'); connectBtn.disabled = true;
+            connIcon.innerText = "→"; connText.innerText = "Connect via USB";
+            wifiBtn.disabled = false; wifiBtn.innerText = "Disconnect WiFi"; wifiBtn.classList.add('btn-disconnect');
+        } else {
+            connectBtn.classList.remove('glow-active'); connectBtn.classList.add('btn-disconnect'); connectBtn.disabled = false;
+            connIcon.innerText = "✕"; connText.innerText = "Disconnect USB";
+            wifiBtn.disabled = true; wifiBtn.innerText = "Connect via WiFi"; wifiBtn.classList.remove('btn-disconnect');
+        }
         const count = foundNodes.size;
         if (count > 0) {
             indicator.innerText = "Active"; indicator.style.color = "var(--accent-green)";
@@ -760,11 +832,13 @@
         }
     }
 
-    function closeModals() { 
+    function closeModals() {
         document.getElementById('nodeModal').style.display = 'none';
         document.getElementById('firmwareModal').style.display = 'none';
         document.getElementById('auxModal').style.display = 'none';
         document.getElementById('ledModal').style.display = 'none';
+        document.getElementById('wifiConnectModal').style.display = 'none';
+        document.getElementById('wifiConfigModal').style.display = 'none';
     }
 
     function constructPayload(mid, valStr) {
@@ -795,7 +869,10 @@
     function parseLine(line) {
         if (!line) return;
         updateLed('blink');
-        const parts = line.split(" "); 
+        // Out-of-band WiFi config replies (text, not a CAN frame) -- see CONFIGURE WIFI modal
+        if (line.startsWith('WIFI_STATUS,')) { handleWifiStatusLine(line); return; }
+        if (line === 'WIFI_SET_OK' || line.startsWith('WIFI_SET_ERR')) { handleWifiSetReply(line); return; }
+        const parts = line.split(" ");
         if (parts.length < 3) return;
         const fid = parseInt(parts[0], 16), nid = fid >> 6, mid = fid & 0x3F;
         // DEBUG: log all incoming frames so we can see NOP replies
@@ -851,6 +928,7 @@
                 }
                 displayVal = Number.isInteger(val) ? val : val.toFixed(2);
             }
+            if (mid === 40) nodeFwVersion.set(nid, val); // track per-node firmware version (MsgType 40)
             if (nid == document.getElementById('nodeIdSelect').value) {
                 const el = document.getElementById(`val-${mid}`);
                 if (el && !el.querySelector('input')) {
@@ -948,7 +1026,15 @@
     }
 
     async function triggerGlobalRefresh() { for (let mid in CAN_FORMATS) { if (CAN_FORMATS[mid][1]) { requestRtr(mid); await new Promise(r => setTimeout(r, 40)); } } }
-    async function sendRaw(str) { if (port?.writable) { const w = port.writable.getWriter(); await w.write(new TextEncoder().encode(str + "\n")); w.releaseLock(); } }
+    async function sendRaw(str) {
+        if (connType === 'usb' && port?.writable) {
+            const w = port.writable.getWriter();
+            await w.write(new TextEncoder().encode(str + "\n"));
+            w.releaseLock();
+        } else if (connType === 'wifi' && wsSocket && wsSocket.readyState === WebSocket.OPEN) {
+            wsSocket.send(str);
+        }
+    }
     function requestRtr(mid, valSpan) {
         const nid = document.getElementById('nodeIdSelect').value, canId = (nid << 6) | (mid & 0x3F);
         sendRaw(`${canId.toString(16).toUpperCase()} 1 0000000000000000`);
@@ -972,6 +1058,10 @@
 
     function updatePreview() {
         const nid = document.getElementById('nodeIdSelect').value, mid = document.getElementById('cmdType').value;
+        // NodeID 0 is the CAN broadcast address (see CAN Protocol.md) -- label it "(all)"
+        // next to the box rather than inside it, since the field stays a native number
+        // input everywhere else in the GUI reads its .value as a plain integer.
+        document.getElementById('nodeIdAllBadge').style.display = (parseInt(nid) === 0) ? 'inline' : 'none';
         const full = `${((nid<<6)|mid).toString(16).toUpperCase().padStart(2, '0')} 0 ${constructPayload(mid, document.getElementById('cmdValue').value)}`;
         document.getElementById('previewStr').innerText = full; return full;
     }
@@ -1034,10 +1124,11 @@
 
     let disconnecting = false;
     async function handleDisconnect(reason, silent) {
-        if (disconnecting) return; // avoid overlapping teardown racing on port/reader
-        if (!keepReading && !port) return; // already disconnected
+        if (disconnecting) return; // avoid overlapping teardown racing on port/reader/socket
+        if (!keepReading && !port && !wsSocket) return; // already disconnected
         disconnecting = true;
         try {
+            const wasWifi = (connType === 'wifi');
             keepReading = false;
             window.guiConnected = false;
             foundNodes.clear();
@@ -1049,9 +1140,11 @@
                 reader = null;
             }
             if (port) { try { await port.close(); } catch(_) {} port = null; }
+            if (wsSocket) { try { wsSocket.onclose = null; wsSocket.onerror = null; wsSocket.close(); } catch(_) {} wsSocket = null; }
+            connType = null;
             refreshSystemStatus();
-            if (!silent) showDisconnectToast();
-            console.warn('Serial disconnected:', reason);
+            if (!silent) showDisconnectToast(wasWifi ? '<strong>Board Disconnected</strong> - WiFi connection lost' : undefined);
+            console.warn('Disconnected:', reason);
         } finally {
             disconnecting = false;
         }
@@ -1109,6 +1202,7 @@
         try {
             port = existingPort || await navigator.serial.requestPort();
             await port.open({ baudRate: 115200 });
+            connType = 'usb';
             keepReading = true;
             window.guiConnected = true;
             pendingAutoSelect = true; // arm the one-shot "select lowest node" for this connection
@@ -1119,6 +1213,7 @@
         } catch(e) {
             console.error('Serial connect failed:', e);
             port = null;
+            connType = null;
             keepReading = false;
             window.guiConnected = false;
             pendingAutoSelect = false;
@@ -1129,10 +1224,181 @@
     }
     window.reconnectMainGui = (existingPort) => connectMainGui(existingPort);
 
+    // Opens a WebSocket connection to a node that has WiFi/WebSocket control enabled
+    // (see CONFIGURE WIFI). The node speaks the exact same line protocol over this
+    // socket as it does over USB serial -- each WS text message is already one complete
+    // line (no "\n" splitting needed, unlike the serial byte stream).
+    async function connectWifiGui(host) {
+        try {
+            await new Promise((resolve, reject) => {
+                const sock = new WebSocket(`ws://${host}:81/`);
+                const onOpenError = (e) => reject(new Error('could not reach device'));
+                sock.addEventListener('open', () => { wsSocket = sock; resolve(); }, { once: true });
+                sock.addEventListener('error', onOpenError, { once: true });
+            });
+            connType = 'wifi';
+            keepReading = true;
+            window.guiConnected = true;
+            pendingAutoSelect = true;
+            wsSocket.onmessage = (ev) => {
+                String(ev.data).split("\n").forEach(l => { l = l.trim(); if (l) parseLine(l); });
+            };
+            wsSocket.onclose = () => { if (connType === 'wifi') handleDisconnect('WiFi connection closed'); };
+            wsSocket.onerror = () => {}; // post-open errors surface via the close event
+            refreshSystemStatus();
+            setTimeout(triggerGlobalRefresh, 500);
+            return true;
+        } catch(e) {
+            console.error('WiFi connect failed:', e);
+            wsSocket = null;
+            connType = null;
+            keepReading = false;
+            window.guiConnected = false;
+            pendingAutoSelect = false;
+            refreshSystemStatus();
+            showDisconnectToast(`<strong>Connect Failed</strong> - ${e.message || 'could not reach device'}. Check the IP/hostname and that WiFi is enabled on that node.`);
+            return false;
+        }
+    }
+
     document.getElementById('connectBtn').onclick = () => {
-        if (port) { handleDisconnect('manual disconnect', true); return; }
+        if (connType === 'usb') { handleDisconnect('manual disconnect', true); return; }
         connectMainGui();
     };
+
+    // --- CONNECT VIA WIFI ---
+    document.getElementById('connectWifiBtn').onclick = () => {
+        if (connType === 'wifi') { handleDisconnect('manual disconnect', true); return; }
+        let last = '';
+        try { last = localStorage.getItem('canbusWifiHost') || ''; } catch(_) {}
+        document.getElementById('wifiConnectHost').value = last;
+        document.getElementById('wifiConnectModal').style.display = 'flex';
+    };
+    document.getElementById('wifiConnectCancelBtn').onclick = () => { document.getElementById('wifiConnectModal').style.display = 'none'; };
+    document.getElementById('wifiConnectGoBtn').onclick = async () => {
+        const host = document.getElementById('wifiConnectHost').value.trim();
+        if (!host) return;
+        try { localStorage.setItem('canbusWifiHost', host); } catch(_) {}
+        const goBtn = document.getElementById('wifiConnectGoBtn'), cancelBtn = document.getElementById('wifiConnectCancelBtn');
+        goBtn.disabled = true; cancelBtn.disabled = true;
+        goBtn.innerText = 'Connecting...';
+        const ok = await connectWifiGui(host);
+        goBtn.disabled = false; cancelBtn.disabled = false;
+        goBtn.innerText = 'Connect';
+        if (ok) document.getElementById('wifiConnectModal').style.display = 'none';
+        // on failure, leave the modal open with the host filled in so the user can retry/edit
+    };
+
+    // --- CONFIGURE WIFI (provision a node's WiFi/WebSocket control over USB serial) ---
+    let wifiStatusPollTimer = null;
+    let wifiFormPrimed = false; // true once the editable fields have been prefilled for this modal-open
+
+    // Locks/unlocks the editable fields based on whether USB is the active connection,
+    // and shows a banner explaining why -- called on open and re-checked on every status
+    // poll tick, so plugging in USB while the dialog is already open unlocks it live.
+    function updateWifiConfigFormGating() {
+        const canSave = (connType === 'usb');
+        // Not connected at all -> prominent banner. Connected via WiFi -> quieter inline
+        // notice, since they can still see live status, just can't edit it from here.
+        document.getElementById('wifiUsbRequiredBanner').style.display = (connType === null) ? 'flex' : 'none';
+        document.getElementById('wifiUsbRequiredNotice').style.display = (connType === 'wifi') ? 'block' : 'none';
+        document.getElementById('wifiEnabledCheck').disabled = !canSave;
+        document.getElementById('wifiSsidInput').disabled = !canSave;
+        document.getElementById('wifiPasswordInput').disabled = !canSave;
+        document.getElementById('wifiPasswordToggle').disabled = !canSave;
+        document.getElementById('wifiSaveBtn').disabled = !canSave;
+    }
+
+    function openWifiConfigModal() {
+        document.getElementById('wifiConfigModal').style.display = 'flex';
+        updateWifiConfigFormGating();
+        document.getElementById('wifiConfigStatusText').innerText = connType ? 'Querying...' : 'Connect via USB to configure';
+        document.getElementById('wifiPasswordInput').type = 'password';
+        document.getElementById('wifiPasswordToggle').innerText = 'Show';
+        wifiFormPrimed = false; // allow the checkbox/SSID to be prefilled once more from the next reply
+        if (connType) sendRaw('WIFI_STATUS?');
+
+        clearInterval(wifiStatusPollTimer);
+        wifiStatusPollTimer = setInterval(() => {
+            if (document.getElementById('wifiConfigModal').style.display !== 'flex') { clearInterval(wifiStatusPollTimer); return; }
+            updateWifiConfigFormGating();
+            if (connType) sendRaw('WIFI_STATUS?');
+        }, 3000);
+    }
+
+    function closeWifiConfigModal() {
+        document.getElementById('wifiConfigModal').style.display = 'none';
+        clearInterval(wifiStatusPollTimer);
+    }
+
+    // WIFI_STATUS,<enabled>,<connected>,<hostname>,<ip>,<ssid>
+    function handleWifiStatusLine(line) {
+        const parts = line.split(',');
+        const enabled = parts[1] === '1', connected = parts[2] === '1';
+        const hostname = parts[3] || '', ip = parts[4] || '', ssid = parts.slice(5).join(',') || '';
+        document.getElementById('wifiHostnameDisplay').innerText = hostname || '—';
+        document.getElementById('wifiIpDisplay').innerText = connected ? (ip || '—') : '—';
+
+        // Only prefill the editable checkbox/SSID once per modal-open (from the first status
+        // reply). The status poll keeps refreshing every 3s after that for the read-only
+        // displays above, but must never clobber what the user is actively typing/ticking --
+        // that was the bug: a poll landing mid-edit silently reverted an unsaved checkbox tick
+        // before Save was clicked, so the save that went out still said "disabled".
+        if (!wifiFormPrimed) {
+            document.getElementById('wifiEnabledCheck').checked = enabled;
+            document.getElementById('wifiSsidInput').value = ssid;
+            wifiFormPrimed = true;
+        }
+
+        const dot = document.getElementById('wifiStatusDot'), text = document.getElementById('wifiConfigStatusText');
+        if (!enabled) { text.innerText = 'Not Configured'; dot.style.background = 'var(--stale-color)'; }
+        else if (connected) { text.innerText = 'Connected'; dot.style.background = 'var(--accent-green)'; }
+        else { text.innerText = 'Connecting / Not Reachable'; dot.style.background = 'var(--accent-orange)'; }
+    }
+
+    function handleWifiSetReply(line) {
+        const text = document.getElementById('wifiConfigStatusText');
+        if (line === 'WIFI_SET_OK') {
+            text.innerText = 'Saved, applying...';
+            setTimeout(() => { if (connType) sendRaw('WIFI_STATUS?'); }, 800);
+        } else {
+            text.innerText = line.replace('WIFI_SET_ERR', '').trim() || 'Save failed';
+        }
+    }
+
+    function sendWifiConfig() {
+        const enabled = document.getElementById('wifiEnabledCheck').checked ? 1 : 0;
+        const ssid = document.getElementById('wifiSsidInput').value.trim();
+        const pass = document.getElementById('wifiPasswordInput').value;
+        if (enabled && !ssid) { alert('Enter a network name (SSID) first.'); return; }
+        if (ssid.includes(',')) { alert('SSID cannot contain a comma.'); return; }
+        sendRaw(`WIFI_SET,${enabled},${ssid},${pass}`);
+        document.getElementById('wifiPasswordInput').value = '';
+        document.getElementById('wifiConfigStatusText').innerText = 'Saving...';
+    }
+
+    document.getElementById('progWifiBtn').addEventListener('click', () => {
+        // WiFi / WebSocket control was added in firmware v0.15 -- gate the dialog behind a
+        // version check when we actually know the target node's version (MsgType 40 telemetry).
+        // 0.145 splits the difference so Float32 rounding noise on 0.14/0.15 can't misfire it.
+        const nid = parseInt(document.getElementById('nodeIdSelect').value);
+        const fw = nodeFwVersion.get(nid);
+        if (fw !== undefined && fw < 0.145) {
+            const update = confirm(`Node ${nid} is running firmware v${fw.toFixed(2)}, which doesn't support WiFi / WebSocket control (added in v0.15).\n\nUpdate its firmware now to enable this feature?`);
+            if (update) document.getElementById('progFirmwareBtn').click();
+            return;
+        }
+        openWifiConfigModal();
+    });
+    document.getElementById('wifiConfigCloseBtn').addEventListener('click', closeWifiConfigModal);
+    document.getElementById('wifiRefreshStatusBtn').addEventListener('click', () => { if (connType) sendRaw('WIFI_STATUS?'); });
+    document.getElementById('wifiSaveBtn').addEventListener('click', sendWifiConfig);
+    document.getElementById('wifiPasswordToggle').addEventListener('click', () => {
+        const input = document.getElementById('wifiPasswordInput'), btn = document.getElementById('wifiPasswordToggle');
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.innerText = show ? 'Hide' : 'Show';
+    });
 
     // FIXED: Target node logic updates UI and maintains telemetry checkboxes
     document.getElementById('nodeIdSelect').onchange = () => {
