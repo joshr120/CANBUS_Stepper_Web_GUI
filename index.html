@@ -116,6 +116,11 @@
         #nodeCounter { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; color: #8a8a8a; margin-left: 5px; transition: color 0.2s; }
         #nodeCounter:hover { color: var(--accent-blue); }
 
+        .copy-icon { fill: none; stroke: #8a8a8a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; vertical-align: -2px; margin-left: 6px; transition: stroke 0.15s, transform 0.1s; }
+        .copy-icon:hover { stroke: var(--accent-blue); }
+        .copy-icon:active { transform: scale(0.85); }
+        .copy-icon.copy-icon-done { stroke: var(--accent-green); }
+
         .modal-overlay { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(8,7,6,0.82); align-items: center; justify-content: center; }
         .modal-content { background: var(--card-bg); border: 1px solid var(--border); padding: 25px; border-radius: 16px; width: 420px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
 
@@ -408,8 +413,8 @@
         </div>
 
         <div style="background:#1f1f1f; border:1px solid #383838; border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:0.8em; color:#a3a3a3; line-height:1.9;">
-            <div>Hostname: <span id="wifiHostnameDisplay" style="color:#ededed; font-family:var(--mono);">—</span></div>
-            <div>IP Address: <span id="wifiIpDisplay" style="color:#ededed; font-family:var(--mono);">—</span></div>
+            <div>Hostname: <span id="wifiHostnameDisplay" style="color:#ededed; font-family:var(--mono);">—</span><svg class="copy-icon" data-copy-target="wifiHostnameDisplay" title="Copy" viewBox="0 0 24 24" width="13" height="13"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></div>
+            <div>IP Address: <span id="wifiIpDisplay" style="color:#ededed; font-family:var(--mono);">—</span><svg class="copy-icon" data-copy-target="wifiIpDisplay" title="Copy" viewBox="0 0 24 24" width="13" height="13"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></div>
         </div>
 
         <label style="cursor:pointer; color:#ededed; display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:0.85em;">
@@ -1114,12 +1119,13 @@
     // --- BUTTON BINDINGS ---
 
     // Clean disconnect — call this on both manual disconnect and USB unplug
-    function showDisconnectToast(message) {
+    function showDisconnectToast(message, duration = 4000) {
         const toast = document.getElementById('disconnectToast');
         const text = document.getElementById('toastText');
         text.innerHTML = message || '<strong>Board Disconnected</strong> - USB connection lost';
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 4000);
+        clearTimeout(toast._hideTimer); // don't let a previous, shorter-lived toast cut this one short
+        toast._hideTimer = setTimeout(() => toast.classList.remove('show'), duration);
     }
 
     let disconnecting = false;
@@ -1256,7 +1262,14 @@
             window.guiConnected = false;
             pendingAutoSelect = false;
             refreshSystemStatus();
-            showDisconnectToast(`<strong>Connect Failed</strong> - ${e.message || 'could not reach device'}. Check the IP/hostname and that WiFi is enabled on that node.`);
+            // mDNS (.local) resolution is unreliable on some networks/OSes (notably Windows
+            // without Bonjour installed) -- if that's what was tried, nudge toward the IP
+            // address instead of just repeating a generic "check it" message.
+            const isDotLocal = /\.local$/i.test(host.trim());
+            const hint = isDotLocal
+                ? 'Could not resolve the .local hostname -- try connecting with the node\'s IP address instead (see Configure WiFi).'
+                : 'Check the IP/hostname and that WiFi is enabled on that node.';
+            showDisconnectToast(`<strong>Connect Failed</strong> - ${e.message || 'could not reach device'}. ${hint}`, 8000); // longer message, give it more time to read
             return false;
         }
     }
@@ -1393,6 +1406,40 @@
     document.getElementById('wifiConfigCloseBtn').addEventListener('click', closeWifiConfigModal);
     document.getElementById('wifiRefreshStatusBtn').addEventListener('click', () => { if (connType) sendRaw('WIFI_STATUS?'); });
     document.getElementById('wifiSaveBtn').addEventListener('click', sendWifiConfig);
+
+    // Copy-to-clipboard icons next to the Hostname/IP display. navigator.clipboard needs a
+    // secure context (https/localhost), which this page won't always be running under (e.g.
+    // opened as a plain file, or over a local http:// connection), so fall back to the old
+    // execCommand('copy') trick via a throwaway textarea when it's unavailable or rejects.
+    function fallbackCopyToClipboard(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* nothing more we can do */ }
+        document.body.removeChild(ta);
+    }
+    document.querySelectorAll('.copy-icon').forEach(icon => {
+        icon.addEventListener('click', () => {
+            const text = document.getElementById(icon.dataset.copyTarget).innerText;
+            if (!text || text === '—') return;
+            const flashDone = () => {
+                const prevTitle = icon.getAttribute('title');
+                icon.classList.add('copy-icon-done');
+                icon.setAttribute('title', 'Copied!');
+                setTimeout(() => { icon.classList.remove('copy-icon-done'); icon.setAttribute('title', prevTitle); }, 1200);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(flashDone).catch(() => { fallbackCopyToClipboard(text); flashDone(); });
+            } else {
+                fallbackCopyToClipboard(text);
+                flashDone();
+            }
+        });
+    });
     document.getElementById('wifiPasswordToggle').addEventListener('click', () => {
         const input = document.getElementById('wifiPasswordInput'), btn = document.getElementById('wifiPasswordToggle');
         const show = input.type === 'password';
