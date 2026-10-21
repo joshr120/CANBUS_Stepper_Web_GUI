@@ -153,6 +153,22 @@
         .btn-save-flash { background: #222222 !important; border: 1px solid #383838 !important; transition: 0.3s; }
         .btn-save-flash:hover { background: var(--accent-blue) !important; border-color: #ff8a3c !important; color: #fff; }
 
+        /* Non-blocking nudge shown next to Save to Flash (e.g. after a Node ID change) --
+           pulses while active, then fades out on its own instead of needing a dismiss click.
+           Absolutely positioned (relative to .save-flash-reminder-anchor) so it floats to
+           the left of the button WITHOUT taking up flex space -- it must never push on
+           Refresh All or the button itself above/beside it. */
+        .save-flash-reminder-anchor { position: relative; }
+        .save-flash-reminder {
+            position: absolute; right: 100%; top: 50%; transform: translateY(-50%); margin-right: 6px;
+            display: flex; align-items: center; gap: 4px; pointer-events: none;
+            color: var(--accent-red); font-size: 0.72em; font-weight: 600; white-space: nowrap;
+            opacity: 0; transition: opacity 1.4s ease-out;
+        }
+        .save-flash-reminder-arrow { font-size: 1.1em; line-height: 1; }
+        .save-flash-reminder.pulsing { animation: save-flash-pulse 2.6s ease-in-out infinite; }
+        @keyframes save-flash-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
         .instruction-hint { font-size: 0.62em; color: #666666; font-family: var(--mono); white-space: nowrap; margin-left: 10px; }
 
         input, select { background: #1f1f1f; color: #ededed; border: 1px solid #383838; padding: 5px; border-radius: 6px; font-family: var(--mono); }
@@ -469,7 +485,10 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <button id="refreshRtr" class="btn btn-refresh-small">Refresh All</button>
-                <button id="saveFlashBtn" class="btn btn-refresh-small btn-save-flash">Save to Flash</button>
+                <div class="save-flash-reminder-anchor">
+                    <span id="saveFlashReminder" class="save-flash-reminder"><span id="saveFlashReminderText"></span><span class="save-flash-reminder-arrow">→</span></span>
+                    <button id="saveFlashBtn" class="btn btn-refresh-small btn-save-flash">Save to Flash</button>
+                </div>
             </div>
         </div>
         <div id="config-list" class="scroll-content"></div>
@@ -1001,7 +1020,7 @@
         11: { title: "Microsteps", options: ["Valid TMC2209 values:", "1, 2, 4, 8, 16, 32, 64, 128, 256"] },
         13: { title: "Closed Loop Type", options: ["0 = Open Loop", "1 = Closed Loop"] },
         14: { title: "Standstill Mode", options: ["0 = Normal", "1 = Freewheeling", "2 = Braking", "3 = Strong Braking"] },
-        25: { title: "Set Node ID", options: ["Takes effect immediately", "Send Save Config (24) to", "the NEW ID to persist it"] },
+        25: { title: "Set Node ID", options: ["Takes effect immediately.", "GUI will switch to the new ID", "and prompt to save to flash."] },
     };
 
     function startInlineEdit(mid, valSpan) {
@@ -1023,7 +1042,11 @@
                 const nid = document.getElementById('nodeIdSelect').value, canId = (parseInt(nid) << 6) | (parseInt(mid) & 0x3F);
                 await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 ${constructPayload(mid, input.value)}`);
                 valSpan.innerText = input.value;
-                setTimeout(triggerGlobalRefresh, 100);
+                // Set Node ID takes effect on the node immediately -- if we don't follow, the
+                // GUI is left pointed at an ID that no longer exists. Switch the target node
+                // and prompt to persist it, instead of relying on the hint text alone.
+                if (mid === '25') handleNodeIdChangeSent(input.value);
+                else setTimeout(triggerGlobalRefresh, 100);
             } else { valSpan.innerText = originalText || "---"; }
         };
         input.onkeydown = (e) => { if (e.key === 'Enter') finishEdit(true); else if (e.key === 'Escape') finishEdit(false); };
@@ -1467,17 +1490,51 @@
         triggerGlobalRefresh();
     };
 
-    document.getElementById('saveFlashBtn').onclick = async () => {
+    async function promptSaveToFlash(message) {
         const nid = document.getElementById('nodeIdSelect').value;
-        if (confirm("Save settings to flash? Ensure settings work before flashing.")) {
+        if (confirm(message || "Save settings to flash? Ensure settings work before flashing.")) {
             const canId = (parseInt(nid) << 6) | (24 & 0x3F);
             await sendRaw(`${canId.toString(16).toUpperCase().padStart(2, '0')} 0 0000000000000000`);
             document.getElementById('saveFlashBtn').innerText = "SAVED!";
             setTimeout(() => { document.getElementById('saveFlashBtn').innerText = "Save to Flash"; }, 1500);
         }
-    };
+    }
+    document.getElementById('saveFlashBtn').onclick = () => promptSaveToFlash();
 
-    document.getElementById('sendBtn').onclick = () => sendRaw(updatePreview());
+    // Non-blocking nudge next to Save to Flash -- pulses for a few seconds, then fades out
+    // on its own. Used instead of a confirm() popup so a Node ID change doesn't force an
+    // immediate yes/no; the user can act on it (or not) in their own time.
+    function showSaveFlashReminder(message) {
+        const el = document.getElementById('saveFlashReminder');
+        const textEl = document.getElementById('saveFlashReminderText');
+        clearTimeout(el._fadeTimer);
+        textEl.innerText = message; // only the text sub-span -- el itself must keep its arrow child
+        el.classList.remove('pulsing');
+        void el.offsetWidth; // force a reflow so re-triggering restarts the pulse animation
+        el.classList.add('pulsing');
+        el._fadeTimer = setTimeout(() => {
+            el.classList.remove('pulsing');
+            el.style.opacity = '0'; // falls back to .save-flash-reminder's transition, fading out
+        }, 8000);
+    }
+
+    // Node ID (MsgType 25) takes effect on the node immediately, so a GUI still pointed at
+    // the OLD ID is now talking to nothing. Follow it to the new ID (same pattern as the
+    // node-selector chips above) and nudge toward persisting it -- an unsaved Node ID
+    // reverts on the next reboot, which is a confusing state to be left in silently.
+    function handleNodeIdChangeSent(newNidStr) {
+        const newNid = parseInt(newNidStr);
+        if (!Number.isInteger(newNid) || newNid < 1 || newNid > 31) return; // firmware rejects this anyway
+        document.getElementById('nodeIdSelect').value = newNid;
+        document.getElementById('nodeIdSelect').dispatchEvent(new Event('change'));
+        showSaveFlashReminder(`Node ID changed to ${newNid} -- save to flash to persist it`);
+    }
+
+    document.getElementById('sendBtn').onclick = () => {
+        const mid = document.getElementById('cmdType').value, val = document.getElementById('cmdValue').value;
+        sendRaw(updatePreview());
+        if (mid === '25') handleNodeIdChangeSent(val); // manual CAN builder can also set Node ID
+    };
     document.getElementById('refreshRtr').onclick = triggerGlobalRefresh;
     document.getElementById('clearChartBtn').onclick = () => { chart.data.datasets.forEach(d => d.data = []); chart.update(); };
     document.getElementById('resetGraphBtn').onclick = () => { document.querySelectorAll('.plot-trigger').forEach(cb => cb.checked = false); chart.data.datasets = []; chart.update(); };
